@@ -8,7 +8,7 @@ export function tokenInterceptor(config: RequestConfig) {
   config.headers = config.headers ?? {}
 
   if (!config.skipAuth && userStore.token) {
-    config.headers.Authorization = `${userStore.token}`
+    config.headers.Authorization = `Bearer ${userStore.token}`
   }
 
   return config as InternalAxiosRequestConfig

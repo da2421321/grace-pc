@@ -1,21 +1,21 @@
 import { isCancel } from 'axios'
 import type { AxiosError, CanceledError } from 'axios'
-import { ApiError, type ApiResult } from '../../types'
+import { ApiError, getErrorMessage, type ApiResult } from '../../types'
 import { showToastAsync } from '@/utils/promisify'
 
 async function tryShowErrorMsg(error: AxiosError<ApiResult>) {
+  const message = error.response ? getErrorMessage(error.response) : error.message
   if (error.response?.status && error.response?.status >= 500) {
     await showToastAsync({
-      title: `${error.response.data.message || error.message}`,
+      title: message,
       icon: 'none',
       duration: 2000,
     })
+    return
   }
-  else if (
-    ((error.response?.config as { showErrorMsg?: boolean } | undefined)
-      ?.showErrorMsg ?? true)
-  ) {
-    await showToastAsync({ title: error.message, icon: 'none', duration: 2000 })
+  const shouldShow = ((error.response?.config as { showErrorMsg?: boolean } | undefined)?.showErrorMsg ?? true)
+  if (shouldShow) {
+    await showToastAsync({ title: message, icon: 'none', duration: 2000 })
   }
 }
 

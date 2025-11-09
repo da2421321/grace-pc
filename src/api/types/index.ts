@@ -1,9 +1,9 @@
 import { AxiosError, type AxiosResponse } from 'axios'
 
 export interface ApiResult<D = unknown> {
-  success: boolean
-  code: string
-  message: string
+  code?: number
+  msg?: string
+  message?: string
   data?: D
 }
 
@@ -11,11 +11,11 @@ export class RetryError extends Error {}
 
 export function getErrorMessage(
   res: AxiosResponse<ApiResult>,
-): string | undefined {
+): string {
   if (!res)
     return '网络异常'
   const { data } = res
-  return data.message
+  return data.msg || data.message || '系统未知错误'
 }
 
 export class ApiError<T extends ApiResult> extends AxiosError {
@@ -23,7 +23,7 @@ export class ApiError<T extends ApiResult> extends AxiosError {
 
   constructor(response: AxiosResponse<T>) {
     const message = getErrorMessage(response)
-    super(message)
+    super(message, undefined, response.config, response.request, response)
     this.response = response
   }
 }

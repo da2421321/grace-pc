@@ -219,7 +219,11 @@ export interface UpdatePasswordRequest {
 }
 
 export interface UserInfoResponse {
-  user: Record<string, unknown>
+  user: {
+    userId: string
+    userName: string
+    avatar: string
+  } & Record<string, unknown>
   roles: string[]
   permissions: string[]
 }

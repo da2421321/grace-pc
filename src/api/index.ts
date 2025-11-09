@@ -9,8 +9,7 @@ import { errorInterceptor } from './interceptors/response/error'
 import { RetryError } from './types'
 
 const config: AxiosRequestConfig = {
-  baseURL:
-    import.meta.env.VITE_APP_BASE_URL || 'https://vue.ruoyi.vip/prod-api',
+  baseURL: import.meta.env.VITE_APP_BASE_URL,
   timeout: 30000,
   adapter: axiosUniAdapter,
 }

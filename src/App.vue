@@ -16,6 +16,7 @@ onHide(() => {
 </script>
 
 <style>
+@import '@/static/font/iconfont.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
