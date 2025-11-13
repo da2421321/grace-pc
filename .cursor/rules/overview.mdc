@@ -1,0 +1,435 @@
+---
+alwaysApply: false
+description: "Project overview, tech stack, environment setup, critical rules (explicit imports, uni-app specifics), and step-by-step guide for creating new features. Use when: starting new features, understanding project structure, checking code review requirements, or needing general project information."
+---
+
+# Hainiu MP Frontend Overview
+
+## Project Description
+Hainiu MP Frontend is a WeChat Mini-Program application built with uni-app, Vue 3, TypeScript, and TailwindCSS. This is a cross-platform mobile frontend application following Vue 3 Composition API best practices and uni-app conventions.
+
+## Tech Stack
+- **Framework**: uni-app 3.0+ with Vue 3.4+
+- **Language**: TypeScript 5.9+
+- **Build Tool**: Vite 5.2+
+- **UI Library**: @dcloudio/uni-ui 1.5+ (uni-app official component library)
+  - Includes: uni-icons, uni-card, uni-list, uni-forms, uni-badge, etc.
+  - Auto-imported via easycom configuration
+- **CSS Framework**: TailwindCSS 3 with weapp-tailwindcss adapter
+- **State Management**: Pinia 3.0+ with pinia-plugin-persistedstate
+- **HTTP Client**: Axios 1.13+ with axios-retry and uni-app adapter
+- **Router**: pages.json (uni-app routing system)
+- **Styling**: TailwindCSS utilities + SCSS + uni.scss
+- **Icons**: uni-icons from @dcloudio/uni-ui
+
+## Project Structure
+
+```
+project-root/
+├── src/                          # Source code directory
+│   ├── api/                      # API layer
+│   │   ├── index.ts              # Axios instance & configuration
+│   │   ├── adapter/              # uni-app axios adapter
+│   │   │   └── index.ts
+│   │   ├── interceptors/         # Request/response interceptors
+│   │   │   ├── request/
+│   │   │   │   └── token.ts      # Add auth token
+│   │   │   └── response/
+│   │   │       ├── code.ts       # Handle response codes
+│   │   │       └── error.ts      # Handle errors
+│   │   ├── services/             # API endpoint definitions
+│   │   │   └── index.ts          # Api class with all endpoints
+│   │   └── types/                # API type definitions
+│   │       └── index.ts
+│   │
+│   ├── components/               # Shared components
+│   │   └── uni-section/          # Custom components
+│   │       └── uni-section.vue
+│   │
+│   ├── pages/                    # Page components (views)
+│   │   ├── index.vue             # Home page (tab bar)
+│   │   ├── login.vue             # Login page
+│   │   ├── register.vue          # Register page
+│   │   ├── work/                 # Work module
+│   │   │   └── index.vue         # Work page (tab bar)
+│   │   ├── mine/                 # User profile module
+│   │   │   ├── index.vue         # Mine page (tab bar)
+│   │   │   ├── info/             # User info pages
+│   │   │   │   ├── index.vue
+│   │   │   │   └── edit.vue
+│   │   │   ├── avatar/           # Avatar upload
+│   │   │   │   └── index.vue
+│   │   │   ├── pwd/              # Change password
+│   │   │   │   └── index.vue
+│   │   │   ├── setting/          # Settings
+│   │   │   │   └── index.vue
+│   │   │   ├── help/             # Help & FAQ
+│   │   │   │   └── index.vue
+│   │   │   └── about/            # About us
+│   │   │       └── index.vue
+│   │   └── common/               # Common utility pages
+│   │       ├── webview/          # Web view
+│   │       │   └── index.vue
+│   │       └── textview/         # Text view
+│   │           └── index.vue
+│   │
+│   ├── store/                    # Pinia state management
+│   │   ├── index.ts              # Pinia instance & plugins
+│   │   └── user.ts               # User store (auth, permissions)
+│   │
+│   ├── utils/                    # Utility functions
+│   │   ├── component.ts          # Component utilities
+│   │   ├── fn.ts                 # General functions
+│   │   ├── formatter.ts          # Data formatters
+│   │   ├── is.ts                 # Type checking
+│   │   ├── object.ts             # Object utilities
+│   │   ├── parser.ts             # Parsers
+│   │   ├── permission.ts         # Permission helpers
+│   │   ├── promisify.ts          # Promise wrappers
+│   │   ├── upload.ts             # File upload helpers
+│   │   ├── user_storage.ts       # User storage utilities
+│   │   └── wx.ts                 # WeChat API wrappers
+│   │
+│   ├── static/                   # Static assets
+│   │   ├── images/               # Image assets
+│   │   │   ├── banner/           # Banner images
+│   │   │   ├── tabbar/           # Tab bar icons
+│   │   │   └── profile.jpg
+│   │   ├── font/                 # Custom fonts
+│   │   │   ├── iconfont.css
+│   │   │   └── iconfont.ttf
+│   │   ├── logo.png
+│   │   └── favicon.ico
+│   │
+│   ├── App.vue                   # Root component
+│   ├── main.ts                   # App entry point
+│   ├── pages.json                # Page routing configuration
+│   ├── manifest.json             # uni-app manifest
+│   ├── uni.scss                  # Global SCSS variables
+│   ├── permission.ts             # Route permission guard
+│   └── env.d.ts                  # TypeScript environment types
+│
+├── dist/                         # Build output directory
+│   └── dev/mp-weixin/            # WeChat mini-program build
+│
+├── node_modules/                 # Dependencies
+├── .vscode/                      # VSCode settings
+├── .cursor/                      # Cursor AI rules
+│   └── rules/                    # Project-specific rules
+│       ├── overview.mdc
+│       ├── code-style.mdc
+│       ├── components.mdc
+│       ├── api.mdc
+│       ├── store.mdc
+│       ├── pages.mdc
+│       └── styles.mdc
+│
+├── package.json                  # NPM dependencies & scripts
+├── tsconfig.json                 # TypeScript configuration
+├── vite.config.ts                # Vite build configuration
+├── tailwind.config.ts            # TailwindCSS configuration
+├── postcss.config.ts             # PostCSS configuration
+├── project.config.json           # Mini-program project config
+└── README.md                     # Project documentation
+```
+
+### Key Directories Explained
+
+#### `/src/api/` - API Layer
+- All backend communication logic
+- Axios configuration with uni-app adapter
+- Request/response interceptors for token and error handling
+- API services organized by domain (auth, user, dictData, etc.)
+- TypeScript interfaces for requests/responses
+
+#### `/src/pages/` - Page Components
+- All page-level components (views)
+- Organized by feature/module (mine, work, common, etc.)
+- Each page is registered in `pages.json`
+- Use `index.vue` as the main page file
+- Page-specific components stay in the same directory
+
+#### `/src/components/` - Shared Components
+- Reusable components used across multiple pages
+- Custom components beyond @dcloudio/uni-ui
+- Only move components here if truly reusable
+
+#### `/src/store/` - State Management
+- Pinia stores using setup syntax
+- User store for authentication and permissions
+- State persistence configured via pinia-plugin-persistedstate
+
+#### `/src/utils/` - Utilities
+- Pure utility functions
+- Helpers for common operations
+- Platform API wrappers
+- Type checking and formatting functions
+
+#### `/src/static/` - Static Assets
+- Images, fonts, and other static files
+- Accessible via relative paths in components
+- Example: `@/static/images/logo.png`
+
+### Configuration Files
+
+- **`pages.json`** - uni-app routing configuration
+  - Page paths and navigation bar settings
+  - Tab bar configuration
+  - Global window styles
+  - easycom component auto-import rules
+
+- **`manifest.json`** - uni-app application manifest
+  - App ID, name, version
+  - Platform-specific configurations
+  - Permissions and capabilities
+
+- **`vite.config.ts`** - Build tool configuration
+  - Vite plugins (uni-app, TailwindCSS adapter)
+  - Build options and optimizations
+
+- **`tailwind.config.ts`** - TailwindCSS configuration
+  - Custom theme settings
+  - Utility class customization
+
+- **`tsconfig.json`** - TypeScript configuration
+  - Compiler options
+  - Path aliases (`@/` → `src/`)
+  - Type definitions
+
+## Path Aliases
+- `@/` → `/src/`
+- Always use `@/` for imports from src directory
+
+## Project-Specific Configuration
+- **Primary language**: Chinese (Simplified) for UI and user messages
+- **Target platforms**: WeChat Mini-Program (primary), can build for H5, Alipay, etc.
+- **Backend API base**: `VITE_APP_BASE_URL` environment variable
+- **Authentication**: JWT Bearer token with Pinia persistence
+- **Permission system**: Role-based + granular permissions
+- **Auto-imports**: Components via easycom (uni-ui), but **always write explicit imports for Vue APIs**
+- **Styling**: TailwindCSS utility classes with rpx units
+- **uni APIs**: Use promisified versions from `/src/utils/promisify.ts` (not callback-based)
+
+## Understanding rpx Units
+
+**CRITICAL**: In uni-app, the viewport width is **always 750rpx** regardless of the actual device screen size.
+
+### Why 750rpx?
+- uni-app standardizes all devices to a **750rpx wide viewport**
+- This ensures consistent layouts across different screen sizes
+- On iPhone 6 (375px wide): 1rpx = 0.5px
+- On larger devices: uni-app automatically scales
+- **Always use rpx for responsive design, never px**
+
+### Converting from Design Files (Figma, Sketch, etc.)
+
+When implementing designs from Figma or other design tools:
+
+1. **Check the design width** (usually 375px for mobile)
+2. **Convert to 750rpx viewport**:
+   - If design is 375px wide → multiply by 2
+   - If design is 750px wide → use directly
+   - Formula: `rpx = (design_px / design_width) * 750`
+
+**Examples**:
+```
+Design (375px wide):
+- Element width: 100px  → 200rpx
+- Font size: 14px       → 28rpx
+- Padding: 10px         → 20rpx
+- Height: 50px          → 100rpx
+
+Design (750px wide):
+- Element width: 200px  → 200rpx
+- Font size: 28px       → 28rpx
+- Padding: 20px         → 20rpx
+```
+
+**In TailwindCSS**:
+```vue
+<!-- Figma design (375px wide): element is 100px wide, 16px font -->
+<view class="w-[200rpx]">
+  <text class="text-[32rpx]">Text</text>
+</view>
+
+<!-- Figma design (750px wide): element is 200px wide, 32px font -->
+<view class="w-[200rpx]">
+  <text class="text-[32rpx]">Text</text>
+</view>
+```
+
+## Environment Variables
+- Access via `import.meta.env.VITE_APP_*`
+- Common variables:
+  - `VITE_APP_BASE_URL` - API base URL
+  - `VITE_APP_LOGO` - App logo path
+  - `VITE_APP_AGREEMENTS` - User agreements JSON
+
+## Development Commands
+- **Dev WeChat MP**: `npm run dev:mp-weixin`
+- **Dev H5**: `npm run dev:h5`
+- **Build WeChat MP**: `npm run build:mp-weixin`
+- **Build H5**: `npm run build:h5`
+- **Type check**: `npm run type-check`
+- **Other platforms**: `npm run dev:mp-{platform}` or `npm run build:mp-{platform}`
+
+## uni-app Specifics
+
+### Platform-Specific Code
+Use conditional compilation for platform-specific features:
+```vue
+<!-- #ifdef H5 -->
+<view>H5 specific content</view>
+<!-- #endif -->
+
+<!-- #ifdef MP-WEIXIN -->
+<view>WeChat MP specific content</view>
+<!-- #endif -->
+
+<!-- #ifndef H5 -->
+<view>All platforms except H5</view>
+<!-- #endif -->
+```
+
+### Template Tags
+- Use `<view>` instead of `<div>`
+- Use `<text>` for text content
+- Use `<image>` instead of `<img>`
+- Use `<button>` for buttons (native component)
+- Use `<input>` for text inputs (native component)
+
+### Lifecycle Hooks
+- Page lifecycle: `onLoad`, `onShow`, `onHide`, `onUnload`, `onPullDownRefresh`
+- Component lifecycle: Vue 3 composition API hooks (`onMounted`, `onUnmounted`)
+- Import from `@dcloudio/uni-app`:
+  ```typescript
+  import { onLoad, onShow, onReady } from '@dcloudio/uni-app'
+  ```
+
+## When Creating New Features
+
+### Step-by-Step Guide
+
+1. **Create API functions** in `/src/api/services/`
+   - Follow existing patterns in Api class
+   - Use TypeScript interfaces for request/response types
+   - Group related APIs in services
+
+2. **Create page component** in `/src/pages/`
+   - Choose appropriate domain folder or create new one
+   - Use kebab-case for folder names
+   - Main page should be `index.vue`
+   - Example: `/src/pages/mine/settings/index.vue`
+
+3. **Register page** in `/src/pages.json`
+   - Add page path and configuration
+   - Set navigation bar title and style
+   - Configure page-specific options
+   - ⚠️ **CRITICAL**: The first page in the array is the entry page (app startup page)
+   - ⚠️ **ALWAYS append new pages to the end** - DO NOT insert at the beginning
+   - Inserting at position 0 will change the app's entry point!
+   ```json
+   {
+     "pages": [
+       {
+         "path": "pages/login"  // ⚠️ DO NOT INSERT BEFORE THIS - it's the entry page!
+       },
+       // ... existing pages
+       {
+         "path": "pages/mine/settings/index",  // ✅ ADD NEW PAGES AT THE END
+         "style": {
+           "navigationBarTitleText": "设置"
+         }
+       }
+     ]
+   }
+   ```
+
+4. **Extract components when needed**
+   - Keep page-specific components in the same directory as the page
+   - Move to `/src/components/` only if truly reusable across multiple pages
+   - uni-ui components are auto-imported via easycom
+
+5. **Use TailwindCSS for styling**
+   - Prefer utility classes over custom CSS
+   - Use rpx units: `w-[200rpx]`, `h-[100rpx]`
+   - Use responsive classes: `sm:`, `md:`, `lg:`
+   - Custom styles in `<style scoped lang="scss">` when needed
+
+6. **Navigation**
+   - Use uni API for navigation: `uni.navigateTo()`, `uni.redirectTo()`, `uni.reLaunch()`
+   - Pass params via query string or global state
+   - Always use absolute paths: `/pages/mine/index`
+
+7. **Add proper TypeScript types**
+   - Define interfaces for data models
+   - Type all function parameters and return values
+   - Use type imports from `@/api`
+
+8. **Handle loading and errors**
+   - Use `uni.showLoading()` and `uni.hideLoading()`
+   - Use `uni.showToast()` for error messages
+   - Implement proper try-catch blocks
+
+9. **Test on multiple platforms**
+   - Test on WeChat DevTools
+   - Test on H5 (browser)
+   - Test on real device when possible
+
+10. **Follow responsive design**
+    - Use rpx units for responsive sizing
+    - Test on different screen sizes
+    - Use TailwindCSS responsive utilities
+
+## Code Review Checklist
+- [ ] Uses `<script setup lang="ts">` syntax
+- [ ] **All Vue API imports are explicit** (ref, reactive, computed, etc.)
+- [ ] Uses correct uni-app template tags (`<view>`, `<text>`, `<image>`)
+- [ ] Proper TypeScript types defined
+- [ ] Loading states implemented with `uni.showLoading()`
+- [ ] Error handling properly implemented
+- [ ] ⚠️ **Uses promisified uni APIs** from `/src/utils/promisify.ts` (not direct callbacks)
+- [ ] Permission checks implemented when needed
+- [ ] TailwindCSS utility classes used appropriately
+- [ ] ⚠️ **Uses rpx units (not px)** - viewport is always 750rpx
+- [ ] ⚠️ **Design converted correctly** - 375px design × 2, 750px design directly
+- [ ] Chinese text for user-facing strings
+- [ ] Page registered in `pages.json`
+- [ ] ⚠️ **New pages added to END of pages array** (not at position 0)
+- [ ] Navigation uses uni API (`uni.navigateTo()`, etc.)
+- [ ] No console.log in production code
+- [ ] Path aliases used correctly (@/ for src)
+- [ ] Platform-specific code uses conditional compilation when needed
+
+## uni-app Best Practices
+
+1. **Use promisified uni APIs instead of callbacks**
+   - ✅ Import from `/src/utils/promisify.ts` (showToastAsync, showModalAsync, etc.)
+   - ❌ Don't use uni APIs with callback functions
+   - ✅ Add to promisify.ts if API not available
+
+2. **Use uni API instead of Web API**
+   - ❌ `fetch()`, `XMLHttpRequest`
+   - ✅ Configured axios with uni-app adapter
+   - ❌ `localStorage`
+   - ✅ `getStorageAsync()`, `setStorageAsync()` from promisify.ts
+
+3. **Use rpx units for responsive design**
+   - ❌ `width: 200px`
+   - ✅ `w-[200rpx]` (viewport is always 750rpx)
+   - ✅ Convert Figma: 375px design × 2, 750px design directly
+
+4. **Follow uni-app component lifecycle**
+   - Use `onLoad` for page initialization
+   - Use `onShow` for page display (runs every time)
+   - Use `onHide` for cleanup or save state
+
+5. **Use Pinia for global state**
+   - Persist important state (token, user info)
+   - Use setup store syntax (not options)
+   - Export store using `useXxxStore` naming
+
+6. **Optimize performance**
+   - Use `v-if` for conditional rendering
+   - Lazy load images with `lazy-load` attribute
+   - Avoid deep nesting in templates

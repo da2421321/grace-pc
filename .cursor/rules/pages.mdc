@@ -1,0 +1,408 @@
+---
+alwaysApply: false
+description: "Page organization, pages.json configuration, navigation, lifecycle hooks, and permission handling. Use when: creating pages, configuring routes, implementing navigation, or using page lifecycle."
+---
+
+# Pages & Routing
+
+## Pages Organization (`/src/pages/`)
+
+### Principles
+1. All page components in `/src/pages/`
+2. Organize by domain/module (`mine/`, `work/`, `common/`)
+3. Use kebab-case for folder names
+4. Main page is `index.vue`
+
+### Example Structure
+```
+/src/pages/
+├── index.vue           # Home (tab bar)
+├── login.vue          # Login
+├── work/index.vue     # Work (tab bar)
+├── mine/
+│   ├── index.vue      # Mine (tab bar)
+│   ├── info/
+│   │   ├── index.vue
+│   │   └── edit.vue
+│   └── setting/index.vue
+```
+
+## Routing Configuration (`pages.json`)
+
+### Page Configuration
+
+**⚠️ CRITICAL**: The **first page** in the array is the **entry page** (app startup page).
+
+```json
+{
+  "pages": [
+    {
+      "path": "pages/login",  // ⚠️ FIRST PAGE = ENTRY PAGE
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/index",  // Other pages
+      "style": {
+        "navigationBarTitleText": "首页"
+      }
+    }
+  ]
+}
+```
+
+**Page Order Rules**:
+- ⚠️ **First page is the entry page** (app starts here)
+- ⚠️ **ALWAYS append new pages to the end** - do NOT insert at position 0
+- Inserting at position 0 will change the app's entry point!
+
+**Adding New Pages**:
+```json
+{
+  "pages": [
+    { "path": "pages/login" },  // ⚠️ DO NOT INSERT HERE
+    // ... existing pages
+    {
+      "path": "pages/new-feature/index",  // ✅ ADD AT THE END
+      "style": {
+        "navigationBarTitleText": "New Feature"
+      }
+    }
+  ]
+}
+```
+
+### Tab Bar Configuration
+```json
+{
+  "tabBar": {
+    "color": "#000000",
+    "selectedColor": "#007AFF",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/index",
+        "iconPath": "static/images/tabbar/home.png",
+        "selectedIconPath": "static/images/tabbar/home_.png",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/work/index",
+        "iconPath": "static/images/tabbar/work.png",
+        "selectedIconPath": "static/images/tabbar/work_.png",
+        "text": "工作台"
+      }
+    ]
+  }
+}
+```
+
+### Global Style
+```json
+{
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "应用标题",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "enablePullDownRefresh": false,
+    "onReachBottomDistance": 50
+  }
+}
+```
+
+## Navigation Patterns
+
+### Navigate to New Page
+```typescript
+// Basic
+uni.navigateTo({ url: '/pages/mine/info/index' })
+
+// With params
+uni.navigateTo({
+  url: `/pages/detail/index?id=${id}&name=${encodeURIComponent(name)}`
+})
+
+// Tab bar page (use switchTab)
+uni.switchTab({ url: '/pages/index' })
+```
+
+### Redirect & Relaunch
+```typescript
+// Replace current page
+uni.redirectTo({ url: '/pages/login' })
+
+// Close all and navigate
+uni.reLaunch({ url: '/pages/index' })
+```
+
+### Navigate Back
+```typescript
+uni.navigateBack()  // Back one page
+uni.navigateBack({ delta: 2 })  // Back two pages
+```
+
+### Passing Parameters
+
+**Via URL Query**:
+```typescript
+// Sender
+uni.navigateTo({ url: `/pages/detail/index?id=${id}` })
+
+// Receiver
+import { onLoad } from '@dcloudio/uni-app'
+
+onLoad((options) => {
+  const id = options.id
+})
+```
+
+**Via Global State**:
+```typescript
+// Sender
+const dataStore = useDataStore()
+dataStore.setData(complexData)
+uni.navigateTo({ url: '/pages/detail/index' })
+
+// Receiver
+const data = useDataStore().getData()
+```
+
+## Page Lifecycle
+
+```typescript
+import { 
+  onLoad, 
+  onShow, 
+  onReady, 
+  onHide, 
+  onUnload,
+  onPullDownRefresh,
+  onReachBottom
+} from '@dcloudio/uni-app'
+
+// Load once (with query params)
+onLoad((options) => {
+  console.log('Loaded with:', options)
+})
+
+// Show every time
+onShow(() => {
+  refreshData()
+})
+
+// DOM ready
+onReady(() => {
+  // DOM operations
+})
+
+// Page hide
+onHide(() => {
+  // Save state
+})
+
+// Page unload
+onUnload(() => {
+  // Cleanup
+})
+
+// Pull down refresh
+onPullDownRefresh(async () => {
+  await refreshData()
+  uni.stopPullDownRefresh()
+})
+
+// Reach bottom
+onReachBottom(() => {
+  loadMore()
+})
+```
+
+### Lifecycle Flow
+1. `onLoad` → Called once when page loads
+2. `onShow` → Called every time page shows
+3. `onReady` → Called once when page is ready
+4. `onHide` → Called when page is hidden
+5. `onUnload` → Called when page is unloaded
+
+## Common Patterns
+
+### Load Data on Page Load
+```typescript
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import apis from '@/api'
+
+const data = ref(null)
+
+onLoad(async (options) => {
+  try {
+    uni.showLoading({ title: '加载中...' })
+    data.value = await apis.getData(options.id)
+  } finally {
+    uni.hideLoading()
+  }
+})
+```
+
+### Refresh on Page Show
+```typescript
+import { onShow } from '@dcloudio/uni-app'
+
+onShow(() => {
+  refreshData()
+})
+```
+
+### Pull-down Refresh
+Enable in `pages.json`:
+```json
+{
+  "path": "pages/list/index",
+  "style": {
+    "enablePullDownRefresh": true
+  }
+}
+```
+
+Then implement:
+```typescript
+import { onPullDownRefresh } from '@dcloudio/uni-app'
+
+onPullDownRefresh(async () => {
+  try {
+    await refreshData()
+  } finally {
+    uni.stopPullDownRefresh()
+  }
+})
+```
+
+### Load More (Reach Bottom)
+```typescript
+import { ref } from 'vue'
+import { onReachBottom } from '@dcloudio/uni-app'
+
+const loading = ref(false)
+const finished = ref(false)
+
+onReachBottom(() => {
+  if (!loading.value && !finished.value) {
+    loadMore()
+  }
+})
+```
+
+## Permission Handling
+
+### Check Permissions
+```typescript
+import { computed } from 'vue'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+
+const canDelete = computed(() => 
+  userStore.hasPermission('system:user:remove')
+)
+
+const isAdmin = computed(() => userStore.hasRole('admin'))
+```
+
+### Conditional Rendering
+```vue
+<script setup lang="ts">
+const userStore = useUserStore()
+const canDelete = computed(() => 
+  userStore.hasPermission('system:user:remove')
+)
+</script>
+
+<template>
+  <button v-if="canDelete" @click="handleDelete">删除</button>
+</template>
+```
+
+### Route Guards
+```typescript
+// /src/permission.ts
+import { useUserStore } from '@/store/user'
+import { showToastAsync } from '@/utils/promisify'
+
+const whiteList = ['/pages/login', '/pages/register']
+
+export async function checkAuth(url: string): Promise<boolean> {
+  const userStore = useUserStore()
+  
+  if (whiteList.some(path => url.includes(path))) {
+    return true
+  }
+  
+  if (!userStore.token) {
+    await showToastAsync({ title: '请先登录', icon: 'none' })
+    uni.reLaunch({ url: '/pages/login' })
+    return false
+  }
+  
+  return true
+}
+```
+
+## Page-Specific Features
+
+### Custom Navigation Bar
+```json
+{
+  "path": "pages/index",
+  "style": {
+    "navigationStyle": "custom"
+  }
+}
+```
+
+Then in component:
+```vue
+<template>
+  <view class="page">
+    <view class="nav-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
+      <text class="nav-title">标题</text>
+    </view>
+    <view class="content">
+      <!-- Page content -->
+    </view>
+  </view>
+</template>
+```
+
+### Share Menu
+```typescript
+import { onShareAppMessage } from '@dcloudio/uni-app'
+
+onShareAppMessage(() => {
+  return {
+    title: '分享标题',
+    path: '/pages/index',
+    imageUrl: '/static/images/share.jpg'
+  }
+})
+```
+
+### Dynamic Title
+```typescript
+import { onLoad } from '@dcloudio/uni-app'
+
+onLoad((options) => {
+  uni.setNavigationBarTitle({
+    title: options.title || '默认标题'
+  })
+})
+```
+
+## Best Practices
+
+1. **Use onShow for data refresh** - Data may be stale when returning
+2. **Clean up in onHide/onUnload** - Remove listeners, clear timers
+3. **Handle navigation errors**
+4. **Use absolute paths** - `/pages/mine/index` not `pages/mine/index`
+5. **Encode URL parameters** - `encodeURIComponent(name)`
+6. **Check navigation stack** - Max 10 pages, use redirectTo if needed

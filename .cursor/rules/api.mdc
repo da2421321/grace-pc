@@ -1,0 +1,448 @@
+---
+alwaysApply: false
+description: "API organization, axios configuration with uni-app adapter, interceptors, type definitions, and usage patterns. Use when: creating API functions, working with backend endpoints, or handling HTTP requests."
+---
+
+# API Layer
+
+## Directory Structure
+```
+/src/api/
+├── index.ts              # Axios instance & config
+├── adapter/index.ts      # uni-app axios adapter
+├── interceptors/
+│   ├── request/token.ts  # Add auth token
+│   └── response/
+│       ├── code.ts       # Handle response codes
+│       └── error.ts      # Handle errors
+├── services/index.ts     # API endpoint definitions
+└── types/index.ts        # TypeScript interfaces
+```
+
+## API Services Structure
+
+All API endpoints are defined in the `Api` class in `/src/api/services/index.ts`.
+
+```typescript
+export class Api<SecurityDataType = unknown> {
+  http: HttpClient<SecurityDataType>
+  
+  auth = {
+    login: (data: LoginRequest, params: RequestParams = {}) =>
+      this.http.request<LoginResponse>({
+        path: '/login',
+        method: 'POST',
+        body: data,
+        type: ContentType.Json,
+        skipAuth: true,
+        ...params,
+      }),
+    getInfo: (params: RequestParams = {}) =>
+      this.http.request<UserInfoResponse>({
+        path: '/getInfo',
+        method: 'GET',
+        ...params,
+      }),
+  }
+  
+  user = {
+    getProfile: (params: RequestParams = {}) =>
+      this.http.request<UserProfileResponse>({
+        path: '/system/user/profile',
+        method: 'GET',
+        ...params,
+      }),
+  }
+}
+```
+
+## Adding New API Endpoints
+
+**IMPORTANT**: Always add new endpoints in `/src/api/services/index.ts` within the `Api` class.
+
+### Step-by-Step
+
+1. **Define types** (in same file or `/src/api/types/`):
+```typescript
+export interface OrderQuery {
+  pageNum?: number
+  pageSize?: number
+  status?: string
+}
+
+export interface Order {
+  orderId: string
+  orderNo: string
+  totalAmount: number
+}
+```
+
+2. **Add service group** to `Api` class:
+```typescript
+export class Api<SecurityDataType extends unknown> {
+  // ... existing services
+  
+  order = {
+    list: (query?: OrderQuery, params: RequestParams = {}) =>
+      this.http.request<ListResponse<Order>>({
+        path: '/order/list',
+        method: 'GET',
+        query,
+        ...params,
+      }),
+    get: (id: string, params: RequestParams = {}) =>
+      this.http.request<Order>({
+        path: `/order/${id}`,
+        method: 'GET',
+        ...params,
+      }),
+    create: (data: Partial<Order>, params: RequestParams = {}) =>
+      this.http.request<Order>({
+        path: '/order',
+        method: 'POST',
+        type: ContentType.Json,
+        body: data,
+        ...params,
+      }),
+    update: (id: string, data: Partial<Order>, params: RequestParams = {}) =>
+      this.http.request<void>({
+        path: `/order/${id}`,
+        method: 'PUT',
+        type: ContentType.Json,
+        body: data,
+        ...params,
+      }),
+    remove: (id: string, params: RequestParams = {}) =>
+      this.http.request<void>({
+        path: `/order/${id}`,
+        method: 'DELETE',
+        ...params,
+      }),
+  }
+}
+```
+
+3. **Use in components**:
+```typescript
+import apis from '@/api'
+
+const orders = await apis.order.list({ pageNum: 1, pageSize: 10 })
+const order = await apis.order.get('ORDER123')
+await apis.order.create({ orderNo: 'ORD001', totalAmount: 100 })
+```
+
+### Naming Conventions
+- `list` - Get paginated list
+- `get` - Get single item by ID
+- `create` - Create new item
+- `update` - Update existing item
+- `remove` - Delete item
+
+### Request Patterns
+
+**GET** with query:
+```typescript
+list: (query?: Query, params: RequestParams = {}) =>
+  this.http.request<Response>({
+    path: '/api/list',
+    method: 'GET',
+    query,
+    ...params,
+  })
+```
+
+**POST** with body:
+```typescript
+create: (data: Data, params: RequestParams = {}) =>
+  this.http.request<Response>({
+    path: '/api/resource',
+    method: 'POST',
+    type: ContentType.Json,
+    body: data,
+    ...params,
+  })
+```
+
+**Skip auth** for public endpoints:
+```typescript
+login: (data: LoginRequest, params: RequestParams = {}) =>
+  this.http.request<LoginResponse>({
+    path: '/login',
+    method: 'POST',
+    type: ContentType.Json,
+    skipAuth: true,  // Skip authentication
+    ...params,
+  })
+```
+
+## Axios Configuration
+
+```typescript
+// /src/api/index.ts
+import { axiosUniAdapter } from './adapter'
+import { Api, HttpClient } from './services'
+import { tokenInterceptor } from './interceptors/request/token'
+import { codeInterceptor } from './interceptors/response/code'
+import { errorInterceptor } from './interceptors/response/error'
+
+const http = new HttpClient({
+  baseURL: import.meta.env.VITE_APP_BASE_URL,
+  timeout: 30000,
+  adapter: axiosUniAdapter,  // Use uni-app adapter
+})
+
+// Add interceptors
+http.instance.interceptors.request.use(tokenInterceptor)
+http.instance.interceptors.response.use(codeInterceptor, errorInterceptor)
+
+export const apis = new Api(http)
+export default apis
+```
+
+## Interceptors
+
+### Request - Add Token
+```typescript
+// /src/api/interceptors/request/token.ts
+import { useUserStore } from '@/store/user'
+
+export function tokenInterceptor(config: InternalAxiosRequestConfig) {
+  const userStore = useUserStore()
+  if (userStore.token) {
+    config.headers.Authorization = `Bearer ${userStore.token}`
+  }
+  return config
+}
+```
+
+### Response - Handle Codes
+```typescript
+// /src/api/interceptors/response/code.ts
+export function codeInterceptor(response: AxiosResponse) {
+  const { code, msg, data } = response.data
+  
+  if (code === 200) return data
+  
+  if (code === 401) {
+    uni.showToast({ title: '登录已过期', icon: 'none' })
+    setTimeout(() => uni.reLaunch({ url: '/pages/login' }), 1500)
+  } else {
+    uni.showToast({ title: msg || '请求失败', icon: 'none' })
+  }
+  
+  return Promise.reject(new Error(msg))
+}
+```
+
+### Response - Handle Errors
+```typescript
+// /src/api/interceptors/response/error.ts
+export function errorInterceptor(error: AxiosError) {
+  const status = error.response?.status
+  
+  const messages = {
+    401: '登录已过期',
+    403: '没有权限',
+    404: '资源不存在',
+    500: '服务器错误',
+  }
+  
+  uni.showToast({
+    title: messages[status] || error.message || '请求失败',
+    icon: 'none'
+  })
+  
+  if (status === 401) {
+    setTimeout(() => uni.reLaunch({ url: '/pages/login' }), 1500)
+  }
+  
+  return Promise.reject(error)
+}
+```
+
+## Usage Patterns
+
+### Basic Request
+```typescript
+import apis from '@/api'
+
+async function fetchData() {
+  try {
+    uni.showLoading({ title: '加载中...' })
+    const res = await apis.getData()
+    return res
+  } catch (error) {
+    console.error('Fetch error:', error)
+  } finally {
+    uni.hideLoading()
+  }
+}
+```
+
+### List with Pagination
+```typescript
+const list = ref([])
+const page = ref(1)
+const pageSize = 10
+
+async function loadMore() {
+  const res = await apis.getList({
+    pageNum: page.value++,
+    pageSize
+  })
+  list.value.push(...res.rows)
+}
+```
+
+### CRUD Operations
+```typescript
+// Create
+async function handleCreate(data: any) {
+  try {
+    uni.showLoading({ title: '创建中...' })
+    await apis.create(data)
+    uni.showToast({ title: '创建成功', icon: 'success' })
+    return true
+  } finally {
+    uni.hideLoading()
+  }
+}
+
+// Update
+async function handleUpdate(id: string, data: any) {
+  try {
+    uni.showLoading({ title: '更新中...' })
+    await apis.update(id, data)
+    uni.showToast({ title: '更新成功', icon: 'success' })
+    return true
+  } finally {
+    uni.hideLoading()
+  }
+}
+
+// Delete with confirmation
+async function handleDelete(id: string) {
+  const confirm = await new Promise(resolve => {
+    uni.showModal({
+      title: '提示',
+      content: '确认删除吗？',
+      success: res => resolve(res.confirm)
+    })
+  })
+  
+  if (!confirm) return false
+  
+  await apis.delete(id)
+  uni.showToast({ title: '删除成功', icon: 'success' })
+  return true
+}
+```
+
+## File Upload
+
+```typescript
+import { useUserStore } from '@/store/user'
+import { chooseMedia, uploadFile, showToastAsync } from '@/utils/promisify'
+
+async function uploadImage(filePath: string) {
+  const userStore = useUserStore()
+  
+  try {
+    uni.showLoading({ title: '上传中...' })
+    
+    const res = await uploadFile({
+      url: `${import.meta.env.VITE_APP_BASE_URL}/common/upload`,
+      filePath,
+      name: 'file',
+      header: {
+        'Authorization': `Bearer ${userStore.token}`
+      }
+    })
+    
+    const data = JSON.parse(res.data)
+    if (data.code === 200) {
+      await showToastAsync({ title: '上传成功', icon: 'success' })
+      return data.data.url
+    }
+    throw new Error(data.msg || '上传失败')
+  } finally {
+    uni.hideLoading()
+  }
+}
+
+// Choose and upload
+async function chooseAndUpload() {
+  const res = await chooseMedia({
+    count: 1,
+    mediaType: ['image'],
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera']
+  })
+  return await uploadImage(res.tempFiles[0].tempFilePath)
+}
+```
+
+## Best Practices
+
+### 1. Type Everything
+```typescript
+// ✅ Good
+async function getUsers(query: UserQuery): Promise<User[]> {
+  return await apis.user.list(query)
+}
+
+// ❌ Bad
+async function getUsers(query: any): Promise<any> {
+  return await apis.user.list(query)
+}
+```
+
+### 2. Handle Errors
+```typescript
+// ✅ Good
+try {
+  const res = await apis.getData()
+  return res
+} catch (error: any) {
+  console.error('Error:', error)
+  throw error  // Re-throw for caller
+}
+
+// ❌ Bad - swallowing errors
+try {
+  const res = await apis.getData()
+  return res
+} catch (error) {
+  // Silent failure
+}
+```
+
+### 3. Use Environment Variables
+```typescript
+// ✅ Good
+const baseURL = import.meta.env.VITE_APP_BASE_URL
+
+// ❌ Bad
+const baseURL = 'http://localhost:8080'
+```
+
+### 4. Show Loading Feedback
+```typescript
+// ✅ Good
+async function fetch() {
+  uni.showLoading({ title: '加载中...' })
+  try {
+    return await apis.getData()
+  } finally {
+    uni.hideLoading()
+  }
+}
+```
+
+### 5. Centralize API Calls
+All API calls should be in `/src/api/services/index.ts`, not scattered in components.
+
+## Related Documentation
+- For state management with API data → see `store.mdc`
+- For using APIs in components → see `components.mdc`
+- For page-level API calls → see `pages.mdc`

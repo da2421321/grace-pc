@@ -1,0 +1,480 @@
+---
+alwaysApply: false
+description: "Vue 3 Composition API for uni-app, explicit imports, TypeScript, TailwindCSS, naming conventions, and uni-app patterns. Use when: writing components, ensuring correct imports, or maintaining code quality."
+---
+
+# Code Style & Conventions
+
+## Vue Component Structure
+
+### Always Use `<script setup lang="ts">`
+```vue
+<script setup lang="ts">
+import { ref, reactive } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+// Component code
+</script>
+
+<template>
+  <view class="container">
+    <text>Content</text>
+  </view>
+</template>
+
+<style scoped lang="scss">
+/* Component styles */
+</style>
+```
+
+### Template Structure Order
+```vue
+<script setup lang="ts">
+// 1. Type imports
+import type { User } from '@/api'
+
+// 2. Vue APIs
+import { ref, reactive, computed } from 'vue'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+
+// 3. Store imports
+import { useUserStore } from '@/store/user'
+
+// 4. API imports
+import apis from '@/api'
+
+// 5. Composables & stores
+const userStore = useUserStore()
+
+// 6. Reactive data
+const loading = ref(false)
+const form = reactive({})
+
+// 7. Computed properties
+const displayName = computed(() => userStore.name)
+
+// 8. Methods
+function handleSubmit() { }
+
+// 9. Lifecycle hooks
+onLoad(() => { })
+</script>
+
+<template>
+  <!-- uni-app tags -->
+</template>
+
+<style scoped lang="scss">
+/* Prefer TailwindCSS utilities */
+</style>
+```
+
+## uni-app Template Tags
+
+### Always Use uni-app Components
+```vue
+<!-- ✅ Good - uni-app tags -->
+<template>
+  <view class="container">
+    <text>Title</text>
+    <image src="@/static/logo.png" mode="widthFix" />
+    <button type="primary" @click="handleClick">Submit</button>
+    <input v-model="value" placeholder="Enter text" />
+  </view>
+</template>
+
+<!-- ❌ Bad - HTML tags -->
+<template>
+  <div class="container">
+    <span>Title</span>
+    <img src="@/static/logo.png" />
+  </div>
+</template>
+```
+
+### Common uni-app Tags
+- `<view>` - container (like `<div>`)
+- `<text>` - text (like `<span>`)
+- `<image>` - images (like `<img>`)
+- `<button>` - button (native)
+- `<input>` - text input (native)
+- `<scroll-view>` - scrollable container
+- `<swiper>` - carousel
+- `<navigator>` - navigation link
+
+### @dcloudio/uni-ui Components
+All uni-ui components are **auto-imported** - no need to import!
+
+```vue
+<template>
+  <view>
+    <!-- No import needed! -->
+    <uni-icons type="heart" size="30" />
+    <uni-badge text="10" type="error" />
+    <uni-card title="Title" />
+    <uni-list>
+      <uni-list-item title="Item" />
+    </uni-list>
+  </view>
+</template>
+
+<script setup lang="ts">
+// No need to import uni-* components
+</script>
+```
+
+## TypeScript Best Practices
+
+### Type Annotations
+```typescript
+// Typed refs
+const loading = ref<boolean>(false)
+const userList = ref<User[]>([])
+
+// Reactive objects
+interface FormData {
+  username: string
+  password: string
+}
+const form = reactive<FormData>({
+  username: '',
+  password: ''
+})
+
+// Function types
+async function login(data: LoginRequest): Promise<void> {
+  await apis.auth.login(data)
+}
+
+// Interfaces
+interface User {
+  userId: string
+  userName: string
+  avatar?: string
+}
+```
+
+## Imports - Always Explicit
+
+**CRITICAL**: **Always write explicit imports** for:
+- Vue APIs (ref, reactive, computed, watch)
+- uni-app lifecycle hooks (onLoad, onShow, etc.)
+- Types and interfaces
+- Store composables
+- Utility functions
+- API functions
+
+```typescript
+// ✅ Good - Explicit
+import { ref, reactive, computed } from 'vue'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+import { useUserStore } from '@/store/user'
+import apis, { type LoginRequest } from '@/api'
+
+// ❌ Bad - Relying on auto-imports
+const loading = ref(false)  // Where is ref from?
+onLoad(() => {})  // Where is onLoad from?
+```
+
+## TailwindCSS Styling
+
+### Prefer Utility Classes
+```vue
+<template>
+  <!-- ✅ Good - TailwindCSS -->
+  <view class="flex flex-col items-center p-[20rpx]">
+    <image class="w-[200rpx] h-[200rpx] rounded-full" src="avatar.jpg" />
+    <text class="text-[28rpx] font-bold">Username</text>
+  </view>
+</template>
+```
+
+### Use rpx Units
+
+**CRITICAL**: In uni-app, viewport width is **always 750rpx** regardless of device screen size.
+
+```vue
+<!-- ✅ Good - rpx units (750rpx = full width) -->
+<view class="w-[750rpx] h-[200rpx] text-[28rpx]">
+</view>
+
+<!-- ❌ Bad - px units (not responsive) -->
+<view class="w-[375px] h-[100px] text-[14px]">
+</view>
+```
+
+**Converting from Figma/Design Files**:
+- Design width 375px → multiply by 2 to get rpx
+- Design width 750px → use directly as rpx
+- Formula: `rpx = (design_px / design_width) * 750`
+
+Examples:
+```
+Figma 375px wide:       Figma 750px wide:
+100px → 200rpx          200px → 200rpx
+14px  → 28rpx           28px  → 28rpx
+10px  → 20rpx           20px  → 20rpx
+```
+
+## Naming Conventions
+
+### Folders & Files
+- **Folders** in `/src/pages/`: kebab-case
+  - ✅ `mine/`, `user-profile/`
+  - ❌ `Mine/`, `UserProfile/`
+- **Files**: kebab-case or `index.vue`
+
+### Code Elements
+```typescript
+// Functions - camelCase
+function handleLogin() { }
+async function fetchUserData() { }
+
+// Constants - UPPER_SNAKE_CASE
+const API_BASE_URL = import.meta.env.VITE_APP_BASE_URL
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+// Interfaces - PascalCase
+interface UserProfile {
+  id: string
+  name: string
+}
+
+interface LoginForm {
+  username: string
+  password: string
+}
+```
+
+## uni-app API Usage
+
+### Promisified APIs
+
+**IMPORTANT**: This project wraps uni APIs with promisify for better async/await usage. 
+
+**Always check `/src/utils/promisify.ts` first** before using uni APIs directly!
+
+```typescript
+import { 
+  showToastAsync, 
+  showModalAsync,
+  getStorageAsync,
+  setStorageAsync,
+  uploadFile,
+  chooseMedia,
+  previewImage
+} from '@/utils/promisify'
+
+// ✅ Good - Use promisified version
+async function handleAction() {
+  await showToastAsync({ title: '操作成功', icon: 'success' })
+  
+  const confirm = await showModalAsync({
+    title: '提示',
+    content: '确认删除吗？'
+  })
+  // Will throw if user cancels
+}
+
+// ✅ Good - Promisified storage
+const userInfo = await getStorageAsync({ key: 'userInfo' })
+await setStorageAsync({ key: 'userInfo', data: userInfo })
+
+// ❌ Bad - Direct uni API with callbacks
+uni.showToast({
+  title: '操作成功',
+  icon: 'success',
+  success: () => {
+    // Callback hell
+  }
+})
+```
+
+**Available Promisified APIs** (in `/src/utils/promisify.ts`):
+- `showToastAsync`, `showModalAsync`
+- `getStorageAsync`, `setStorageAsync`
+- `uploadFile`, `downloadFile`
+- `chooseMedia`, `chooseMessageFile`
+- `previewImage`, `setClipboardData`
+- `login`, `setTabBarBadge`, `removeTabBarBadge`
+- `saveImageToPhotosAlbumAsync`, `saveVideoToPhotosAlbumAsync`
+
+### Adding New Promisified APIs
+
+If you need a uni API that's not in promisify.ts, **add it there first**:
+
+```typescript
+// /src/utils/promisify.ts
+
+// Add new promisified API
+export const chooseImage = promisify(uni.chooseImage)
+export const chooseVideo = promisify(uni.chooseVideo)
+export const getLocation = promisify(uni.getLocation)
+```
+
+Then use in components:
+```typescript
+import { chooseImage } from '@/utils/promisify'
+
+async function selectImage() {
+  const res = await chooseImage({
+    count: 1,
+    sizeType: ['compressed']
+  })
+  const filePath = res.tempFilePaths[0]
+}
+```
+
+### Navigation (Direct uni API OK)
+Navigation APIs don't need promisify:
+```typescript
+// ✅ Direct usage OK for navigation
+uni.navigateTo({ url: '/pages/mine/index' })
+uni.redirectTo({ url: '/pages/login' })
+uni.reLaunch({ url: '/pages/index' })
+uni.switchTab({ url: '/pages/index' })
+```
+
+### Loading APIs (Direct uni API OK)
+Loading/hide APIs don't need promisify:
+```typescript
+// ✅ Direct usage OK
+uni.showLoading({ title: '加载中...' })
+uni.hideLoading()
+```
+
+### Network Requests
+Use configured axios (not `uni.request()` directly):
+```typescript
+// ✅ Good - Use configured axios
+import apis from '@/api'
+
+async function fetchData() {
+  const res = await apis.getData()
+  return res
+}
+
+// ❌ Bad - Direct uni.request
+uni.request({
+  url: 'https://api.example.com/user',
+  success: (res) => { }
+})
+```
+
+## Lifecycle Hooks
+
+```typescript
+import { onLoad, onShow, onReady, onHide, onUnload } from '@dcloudio/uni-app'
+
+// Page load (with query params)
+onLoad((options) => {
+  console.log('Loaded with:', options)
+})
+
+// Page show (every time)
+onShow(() => {
+  refreshData()
+})
+
+// Page ready (DOM rendered)
+onReady(() => {
+  // DOM operations
+})
+
+// Page hide
+onHide(() => {
+  // Save state
+})
+
+// Page unload
+onUnload(() => {
+  // Cleanup
+})
+```
+
+### Pull-down Refresh
+```typescript
+import { onPullDownRefresh } from '@dcloudio/uni-app'
+
+onPullDownRefresh(async () => {
+  await refreshData()
+  uni.stopPullDownRefresh()
+})
+```
+
+## Anti-Patterns to Avoid
+
+1. ❌ Don't use HTML tags - use uni-app tags (`<view>`, `<text>`)
+2. ❌ Don't use Web APIs - use uni APIs
+3. ❌ Don't use callback-based uni APIs - use promisified versions from `/src/utils/promisify.ts`
+4. ❌ Don't use px - use rpx (viewport is always 750rpx)
+5. ❌ Don't use `var` - use `const` or `let`
+6. ❌ Don't mutate props directly
+7. ❌ Don't forget `.value` for refs
+8. ❌ Don't create large components - split them
+9. ❌ Don't hardcode URLs - use env variables
+10. ❌ Don't use console.log in production
+11. ❌ **Don't rely on auto-imports** - always write explicit imports for Vue APIs
+
+## Security Best Practices
+
+1. Include auth token in requests (handled by interceptor)
+2. Validate user input on client and server
+3. Sanitize user input in forms
+4. Use permission checks for sensitive operations
+5. Don't expose sensitive data in console logs
+6. Use HTTPS for all API requests
+
+## Comments & Documentation
+
+### Language Guidelines
+- **Chinese** for user-facing text and business logic
+- **English** for technical comments and code docs
+
+```typescript
+// 获取用户信息 - Business logic in Chinese
+async function fetchUserProfile() {
+  const res = await apis.user.getProfile()
+  return res
+}
+
+/**
+ * Formats date to specified pattern
+ * @param {Date} date - The date to format
+ * @returns {string} Formatted date string
+ */
+function formatDate(date: Date): string {
+  // Technical utility in English
+}
+```
+
+## Platform-Specific Code
+
+Use conditional compilation for platform-specific features:
+```vue
+<!-- #ifdef H5 -->
+<view>H5 specific</view>
+<!-- #endif -->
+
+<!-- #ifdef MP-WEIXIN -->
+<view>WeChat MP specific</view>
+<!-- #endif -->
+
+<!-- #ifndef H5 -->
+<view>All except H5</view>
+<!-- #endif -->
+```
+
+In TypeScript:
+```typescript
+// #ifdef MP-WEIXIN
+uni.getSystemInfo({
+  success: (res) => {
+    console.log('WeChat MP:', res)
+  }
+})
+// #endif
+
+// #ifdef H5
+console.log('H5 platform')
+// #endif
+```

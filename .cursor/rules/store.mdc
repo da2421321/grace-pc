@@ -1,0 +1,469 @@
+---
+alwaysApply: false
+description: "Pinia store with setup syntax, state management, persistence, and permission helpers. Use when: creating stores, managing global state, or implementing permission logic."
+---
+
+# State Management with Pinia
+
+## Store Structure (Setup Syntax)
+
+Always use setup store syntax (Composition API style):
+
+```typescript
+// /src/store/user.ts
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import apis, { type LoginRequest } from '@/api'
+
+export const useUserStore = defineStore(
+  'user',
+  () => {
+    // State (refs)
+    const token = ref('')
+    const name = ref('')
+    const roles = ref<string[]>([])
+    const permissions = ref<string[]>([])
+    
+    // Getters (computed)
+    const isLoggedIn = computed(() => Boolean(token.value))
+    
+    // Actions (functions)
+    async function login(payload: LoginRequest) {
+      const response = await apis.auth.login(payload)
+      token.value = response.token
+    }
+    
+    async function logout() {
+      if (token.value) {
+        await apis.auth.logout().catch(() => {})
+      }
+      reset()
+    }
+    
+    function reset() {
+      token.value = ''
+      roles.value = []
+      permissions.value = []
+      name.value = ''
+    }
+    
+    // Return all
+    return {
+      token, name, roles, permissions,
+      isLoggedIn,
+      login, logout, reset
+    }
+  },
+  {
+    // Persistence
+    persist: {
+      key: 'user-store',
+      pick: ['token', 'name', 'roles', 'permissions']
+    }
+  }
+)
+```
+
+## Store Conventions
+
+1. Use setup store syntax (not options API)
+2. Export using `useXxxStore()` naming
+3. Use `ref()` for state
+4. Use `computed()` for getters
+5. Use regular functions for actions
+6. Return all state, getters, and actions
+7. Configure persistence for important state
+
+## Complete User Store Example
+
+```typescript
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import apis from '@/api'
+
+const ALL_PERMISSION = '*:*:*'
+const SUPER_ADMIN = 'admin'
+
+export const useUserStore = defineStore(
+  'user',
+  () => {
+    // ===== State =====
+    const token = ref('')
+    const id = ref('')
+    const name = ref('')
+    const avatar = ref('')
+    const roles = ref<string[]>([])
+    const permissions = ref<string[]>([])
+    
+    // ===== Getters =====
+    const isLoggedIn = computed(() => Boolean(token.value))
+    const isAdmin = computed(() => roles.value.includes(SUPER_ADMIN))
+    
+    // ===== Actions =====
+    async function login(payload: LoginRequest) {
+      const response = await apis.auth.login(payload)
+      token.value = response.token
+    }
+    
+    async function fetchProfile() {
+      const res = await apis.auth.getInfo()
+      id.value = res.user?.userId ?? ''
+      name.value = res.user?.userName ?? ''
+      avatar.value = res.user?.avatar ?? '/static/images/profile.jpg'
+      roles.value = res.roles?.length > 0 ? res.roles : ['ROLE_DEFAULT']
+      permissions.value = res.permissions || []
+      return res
+    }
+    
+    async function logout() {
+      if (token.value) {
+        await apis.auth.logout().catch(() => {})
+      }
+      reset()
+    }
+    
+    function reset() {
+      token.value = ''
+      roles.value = []
+      permissions.value = []
+      id.value = ''
+      name.value = ''
+      avatar.value = ''
+    }
+    
+    // ===== Permission Helpers =====
+    function hasPermission(permission: string): boolean {
+      if (!permission) return false
+      return permissions.value.some(
+        item => item === ALL_PERMISSION || item === permission
+      )
+    }
+    
+    function hasAnyPermission(required: string[]): boolean {
+      if (!Array.isArray(required) || required.length === 0) return false
+      return required.some(item => hasPermission(item))
+    }
+    
+    function hasAllPermissions(required: string[]): boolean {
+      if (!Array.isArray(required) || required.length === 0) return false
+      return required.every(item => hasPermission(item))
+    }
+    
+    // ===== Role Helpers =====
+    function hasRole(role: string): boolean {
+      if (!role) return false
+      return roles.value.some(item => item === SUPER_ADMIN || item === role)
+    }
+    
+    function hasAnyRole(required: string[]): boolean {
+      if (!Array.isArray(required) || required.length === 0) return false
+      return required.some(item => hasRole(item))
+    }
+    
+    function hasAllRoles(required: string[]): boolean {
+      if (!Array.isArray(required) || required.length === 0) return false
+      return required.every(item => hasRole(item))
+    }
+    
+    // ===== Return =====
+    return {
+      // State
+      token, id, name, avatar, roles, permissions,
+      // Getters
+      isLoggedIn, isAdmin,
+      // Actions
+      login, fetchProfile, logout, reset,
+      // Helpers
+      hasPermission, hasAnyPermission, hasAllPermissions,
+      hasRole, hasAnyRole, hasAllRoles
+    }
+  },
+  {
+    persist: {
+      key: 'user-store',
+      pick: ['token', 'id', 'name', 'avatar', 'roles', 'permissions']
+    }
+  }
+)
+```
+
+## Store Organization
+
+```typescript
+// /src/store/index.ts
+import { createPinia } from 'pinia'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
+
+const pinia = createPinia()
+pinia.use(piniaPluginPersistedstate)
+
+export default pinia
+```
+
+Register in main.ts:
+```typescript
+import { createSSRApp } from 'vue'
+import pinia from './store'
+
+export function createApp() {
+  const app = createSSRApp(App)
+  app.use(pinia)
+  return { app }
+}
+```
+
+## Using Stores in Components
+
+### Basic Usage
+```vue
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+
+// Access state
+const userName = computed(() => userStore.name)
+
+// Access getters
+const isLoggedIn = computed(() => userStore.isLoggedIn)
+
+// Call actions
+async function handleLogin(data) {
+  await userStore.login(data)
+  await userStore.fetchProfile()
+}
+
+async function handleLogout() {
+  await userStore.logout()
+  uni.reLaunch({ url: '/pages/login' })
+}
+</script>
+
+<template>
+  <view>
+    <text>{{ userName }}</text>
+    <button @click="handleLogout">退出</button>
+  </view>
+</template>
+```
+
+### Permission Checks
+```vue
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+
+const canDelete = computed(() => 
+  userStore.hasPermission('system:user:remove')
+)
+
+const canEdit = computed(() => 
+  userStore.hasAnyPermission(['system:user:edit', 'system:user:add'])
+)
+
+const isAdmin = computed(() => userStore.isAdmin)
+</script>
+
+<template>
+  <view>
+    <button v-if="canDelete" @click="handleDelete">删除</button>
+    <view v-if="isAdmin">管理员面板</view>
+  </view>
+</template>
+```
+
+## State Persistence
+
+### Basic Configuration
+```typescript
+{
+  persist: {
+    key: 'user-store',
+    pick: ['token', 'name']  // Only persist these
+  }
+}
+```
+
+### Persist All
+```typescript
+{
+  persist: true  // Persist everything
+}
+```
+
+### Multiple Storage
+```typescript
+{
+  persist: [
+    { key: 'user-token', pick: ['token'] },
+    { key: 'user-info', pick: ['id', 'name'] }
+  ]
+}
+```
+
+## App Settings Store Example
+
+```typescript
+// /src/store/app.ts
+import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
+
+export const useAppStore = defineStore(
+  'app',
+  () => {
+    const theme = ref<'light' | 'dark'>('light')
+    const language = ref('zh-CN')
+    
+    const isDarkMode = computed(() => theme.value === 'dark')
+    
+    function setTheme(newTheme: 'light' | 'dark') {
+      theme.value = newTheme
+    }
+    
+    function toggleTheme() {
+      theme.value = theme.value === 'light' ? 'dark' : 'light'
+    }
+    
+    return {
+      theme, language, isDarkMode,
+      setTheme, toggleTheme
+    }
+  },
+  {
+    persist: {
+      key: 'app-settings',
+      pick: ['theme', 'language']
+    }
+  }
+)
+```
+
+## Common Patterns
+
+### Loading State
+```typescript
+export const useDataStore = defineStore('data', () => {
+  const data = ref([])
+  const loading = ref(false)
+  const error = ref<Error | null>(null)
+  
+  async function fetchData() {
+    loading.value = true
+    error.value = null
+    try {
+      data.value = await apis.getData()
+    } catch (err) {
+      error.value = err as Error
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  return { data, loading, error, fetchData }
+})
+```
+
+### Pagination
+```typescript
+export const useListStore = defineStore('list', () => {
+  const items = ref([])
+  const page = ref(1)
+  const total = ref(0)
+  
+  const hasMore = computed(() => items.value.length < total.value)
+  
+  async function loadMore() {
+    if (!hasMore.value) return
+    const res = await apis.getList({ pageNum: page.value++ })
+    items.value.push(...res.rows)
+    total.value = res.total
+  }
+  
+  function reset() {
+    items.value = []
+    page.value = 1
+    total.value = 0
+  }
+  
+  return { items, hasMore, loadMore, reset }
+})
+```
+
+## Best Practices
+
+### 1. Use Setup Syntax
+```typescript
+// ✅ Good
+export const useUserStore = defineStore('user', () => {
+  const token = ref('')
+  return { token }
+})
+
+// ❌ Bad - Options API
+export const useUserStore = defineStore('user', {
+  state: () => ({ token: '' })
+})
+```
+
+### 2. Type Your State
+```typescript
+// ✅ Good
+const userInfo = ref<UserInfo | null>(null)
+const roles = ref<string[]>([])
+
+// ❌ Bad
+const userInfo = ref(null)
+const roles = ref([])
+```
+
+### 3. Persist Only What's Needed
+```typescript
+// ✅ Good - minimal data
+{
+  persist: {
+    pick: ['token', 'id']
+  }
+}
+
+// ❌ Bad - too much
+{
+  persist: true
+}
+```
+
+### 4. Provide Helper Functions
+```typescript
+// ✅ Good - convenient helpers
+function hasPermission(perm: string) { /* ... */ }
+
+// ❌ Bad - manual checks everywhere
+if (store.permissions.includes('system:user:remove')) { }
+```
+
+### 5. Handle Async Properly
+```typescript
+// ✅ Good
+async function login(data: LoginRequest) {
+  try {
+    const res = await apis.auth.login(data)
+    token.value = res.token
+  } catch (error) {
+    console.error('Login failed:', error)
+    throw error
+  }
+}
+```
+
+### 6. Use Descriptive Names
+```typescript
+// ✅ Good
+function fetchUserProfile() { }
+function updateUserAvatar() { }
+
+// ❌ Bad
+function fetch() { }
+function update() { }
+```
