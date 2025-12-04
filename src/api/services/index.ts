@@ -81,11 +81,11 @@ export class HttpClient<SecurityDataType = unknown> {
       ...params1,
       ...(params2 || {}),
       headers: {
-        ...((method &&
-          this.instance.defaults.headers[
+        ...((method
+          && this.instance.defaults.headers[
             method.toLowerCase() as keyof HeadersDefaults
-          ]) ||
-          {}),
+          ])
+          || {}),
         ...(params1.headers || {}),
         ...((params2 && params2.headers) || {}),
       },
@@ -104,8 +104,8 @@ export class HttpClient<SecurityDataType = unknown> {
   protected createFormData(input: Record<string, unknown>): FormData {
     return Object.keys(input || {}).reduce((formData, key) => {
       const property = input[key]
-      const propertyContent: any[] =
-        property instanceof Array ? property : [property]
+      const propertyContent: any[]
+        = Array.isArray(property) ? property : [property]
 
       for (const formItem of propertyContent) {
         const isFileType = formItem instanceof Blob || formItem instanceof File
@@ -129,28 +129,28 @@ export class HttpClient<SecurityDataType = unknown> {
     skipAuth,
     ...params
   }: FullRequestParams): Promise<T> => {
-    const secureParams =
-      ((typeof secure === 'boolean' ? secure : this.secure) &&
-        this.securityWorker &&
-        (await this.securityWorker(this.securityData))) ||
-      {}
+    const secureParams
+      = ((typeof secure === 'boolean' ? secure : this.secure)
+        && this.securityWorker
+        && (await this.securityWorker(this.securityData)))
+      || {}
     const requestParams = this.mergeRequestParams(params, secureParams)
     const responseFormat = format || this.format || undefined
 
     if (
-      type === ContentType.FormData &&
-      body &&
-      body !== null &&
-      typeof body === 'object'
+      type === ContentType.FormData
+      && body
+      && body !== null
+      && typeof body === 'object'
     ) {
       body = this.createFormData(body as Record<string, unknown>)
     }
 
     if (
-      type === ContentType.Text &&
-      body &&
-      body !== null &&
-      typeof body !== 'string'
+      type === ContentType.Text
+      && body
+      && body !== null
+      && typeof body !== 'string'
     ) {
       body = JSON.stringify(body)
     }
@@ -170,15 +170,18 @@ export class HttpClient<SecurityDataType = unknown> {
         url: path,
         ...(skipAuth !== undefined ? { skipAuth } : {}),
       })
-      .then((response) => response.data)
+      .then(response => response.data)
   }
 }
 
 export interface LoginRequest {
-  username: string
-  password: string
-  code?: string
+  phone: string
+  captcha?: string
   uuid?: string
+  code?: string
+  spread_spid?: number
+  isCustomer?: boolean
+  type?: string
 }
 
 export interface LoginResponse {
@@ -218,6 +221,29 @@ export interface UpdatePasswordRequest {
   newPassword: string
 }
 
+export interface WechatLoginBody {
+  spread_spid?: number
+  nickName?: string
+  sex?: number
+  avatar?: string
+}
+
+export interface WechatLoginResponse {
+  token?: string
+  type: string
+  key?: string
+  data?: any
+}
+
+export interface WechatBindPhoneRequest {
+  key: string
+  encryptedData: string
+  iv: string
+  code: string
+  type: string
+  isCustomer: string
+}
+
 export interface UserInfoResponse {
   user: {
     userId: string
@@ -240,7 +266,7 @@ export class Api<SecurityDataType extends unknown> {
   auth = {
     login: (data: LoginRequest, params: RequestParams = {}) =>
       this.http.request<LoginResponse>({
-        path: '/login',
+        path: '/front/wechat/login/mobile',
         method: 'POST',
         body: data,
         type: ContentType.Json,
@@ -272,6 +298,34 @@ export class Api<SecurityDataType extends unknown> {
       this.http.request<CaptchaResponse>({
         path: '/captchaImage',
         method: 'GET',
+        skipAuth: true,
+        ...params,
+      }),
+    sendCode: (data: { phone: string }, params: RequestParams = {}) =>
+      this.http.request<void>({
+        path: '/front/wechat/sendCode',
+        method: 'POST',
+        body: data,
+        type: ContentType.Json,
+        skipAuth: true,
+        ...params,
+      }),
+    wechatLogin: (code: string, body: WechatLoginBody, params: RequestParams = {}) =>
+      this.http.request<WechatLoginResponse>({
+        path: '/front/wechat/authorize/program/login',
+        method: 'POST',
+        query: { code },
+        body,
+        type: ContentType.Json,
+        skipAuth: true,
+        ...params,
+      }),
+    wechatBindPhone: (data: WechatBindPhoneRequest, params: RequestParams = {}) =>
+      this.http.request<LoginResponse>({
+        path: '/front/wechat/register/binding/phone',
+        method: 'POST',
+        body: data,
+        type: ContentType.Json,
         skipAuth: true,
         ...params,
       }),

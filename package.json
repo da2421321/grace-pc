@@ -58,6 +58,7 @@
     "axios": "^1.13.2",
     "axios-retry": "^4.5.0",
     "htmlparser2": "^10.0.0",
+    "is-retry-allowed": "^2.2.0",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "vue": "^3.4.21",

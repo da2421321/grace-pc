@@ -20,10 +20,10 @@ export const useUserStore = defineStore(
     const isLoggedIn = computed(() => Boolean(token.value))
 
     async function login(payload: LoginRequest) {
-      const trimmed = payload.username.trim()
+      const trimmed = payload.phone.trim()
       const response = await apis.auth.login({
         ...payload,
-        username: trimmed,
+        phone: trimmed,
       })
       token.value = response.token
     }
