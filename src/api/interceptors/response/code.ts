@@ -1,6 +1,6 @@
 import type { AxiosResponse } from 'axios'
 import { ApiError, type ApiResult } from '../../types'
-import { showModalAsync } from '@/utils/promisify'
+import { showModalAsync, showToastAsync } from '@/utils/promisify'
 import { useUserStore } from '@/store/user'
 
 function normalizeCode(code?: number | string) {
@@ -31,6 +31,14 @@ export async function codeInterceptor(response: AxiosResponse<ApiResult>) {
     catch {
       // user canceled, swallow rejection but still throw ApiError to keep flow consistent
     }
+    throw new ApiError(response)
+  }
+
+  if (code === 500 && data.msg?.includes('LoginUser')) {
+    await showToastAsync({ title: '登录状态已过期，请重新登录', icon: 'none' })
+    const store = useUserStore()
+    store.reset()
+    uni.reLaunch({ url: '/pages/login' })
     throw new ApiError(response)
   }
 
