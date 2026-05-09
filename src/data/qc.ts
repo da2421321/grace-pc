@@ -1,3 +1,5 @@
+import apis from '@/api'
+
 export const ALL_VALUE = '__all__'
 
 export interface QualityImageItem {
@@ -84,8 +86,39 @@ const MOCK_ITEMS: QualityImageItem[] = [
 ]
 
 export async function fetchQualityImages(): Promise<QualityImageApiResponse> {
+  try {
+    const response = await apis.pcQc.qualityImages()
+    const payload = unwrapData<QualityImageApiResponse>(response)
+    if (payload?.items?.length) {
+      return {
+        items: payload.items.map(normalizeImageItem),
+      }
+    }
+  }
+  catch {
+    // 本地预览或后端未部署时使用内置示例数据
+  }
+
   return {
     items: MOCK_ITEMS.filter(item => item.enabled),
+  }
+}
+
+function unwrapData<T>(response: unknown): T | undefined {
+  if (!response || typeof response !== 'object')
+    return undefined
+  const body = response as Record<string, unknown>
+  if ('data' in body)
+    return body.data as T
+  return response as T
+}
+
+function normalizeImageItem(item: QualityImageItem): QualityImageItem {
+  return {
+    ...item,
+    enabled: item.enabled !== false,
+    categoryPath: Array.isArray(item.categoryPath) ? item.categoryPath : [],
+    topCategory: item.topCategory || item.categoryPath?.[0] || '未分类',
   }
 }
 

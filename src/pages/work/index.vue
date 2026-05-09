@@ -11,7 +11,8 @@ import {
   getVarietyOptions,
   type QualityImageItem,
 } from '@/data/qc'
-import { addMyReport } from '@/data/reports'
+import { createMyReport } from '@/data/reports'
+import { uploadCommon } from '@/utils/upload'
 
 const items = ref<QualityImageItem[]>([])
 const loading = ref(true)
@@ -21,6 +22,7 @@ const selectedVariety = ref(ALL_VALUE)
 const pickerExpanded = ref(true)
 const imagePath = ref('')
 const description = ref('')
+const submitting = ref(false)
 
 const topCategoryOptions = computed(() => getTopCategoryOptions(items.value).filter(option => option.value !== ALL_VALUE))
 const itemsAfterTop = computed(() => getItemsAfterTop(items.value, selectedTop.value))
@@ -123,7 +125,9 @@ function resetForm() {
   description.value = ''
 }
 
-function submit() {
+async function submit() {
+  if (submitting.value)
+    return
   if (!categoryAndVarietyReady.value) {
     uni.showToast({ title: '请先选完品类和品种', icon: 'none' })
     return
@@ -137,14 +141,31 @@ function submit() {
     return
   }
 
-  addMyReport({
-    category: selectedCategoryLabel.value,
-    variety: selectedVarietyLabel.value,
-    description: description.value,
-    imagePath: imagePath.value,
-  })
-  resetForm()
-  uni.navigateTo({ url: '/pages/report/success' })
+  submitting.value = true
+  uni.showLoading({ title: '提交中...', mask: true })
+  try {
+    let uploadedImageUrl = imagePath.value
+    try {
+      const uploadResult = await uploadCommon(imagePath.value)
+      uploadedImageUrl = uploadResult.url || uploadedImageUrl
+    }
+    catch {
+      // 上传接口未部署时保留临时路径，便于本地预览流程继续
+    }
+
+    await createMyReport({
+      category: selectedCategoryLabel.value,
+      variety: selectedVarietyLabel.value,
+      description: description.value,
+      imagePath: uploadedImageUrl,
+    })
+    resetForm()
+    uni.navigateTo({ url: '/pages/report/success' })
+  }
+  finally {
+    submitting.value = false
+    uni.hideLoading()
+  }
 }
 </script>
 
@@ -320,7 +341,7 @@ function submit() {
             :class="['primary-button', canSubmit ? '' : 'primary-button-disabled']"
             @click="submit"
           >
-            提交
+            {{ submitting ? '提交中' : '提交' }}
           </button>
         </view>
       </view>

@@ -2,12 +2,12 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import ReportStatusBadge from '@/components/report-status-badge.vue'
-import { getMyReports, type MyReportRecord } from '@/data/reports'
+import { fetchMyReports, type MyReportRecord } from '@/data/reports'
 
 const rows = ref<MyReportRecord[]>([])
 
-onShow(() => {
-  rows.value = getMyReports()
+onShow(async () => {
+  rows.value = await fetchMyReports()
 })
 
 function goDetail(id: string) {

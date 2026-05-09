@@ -1,3 +1,4 @@
+import apis from '@/api'
 import { getCurrentUser } from './session'
 
 export type ReportProcessStatus = 'pending' | 'done'
@@ -89,6 +90,32 @@ export function getMyReportById(id: string): MyReportRecord | undefined {
   return loadUserReports().find(report => report.id === id) ?? MOCK_REPORTS.find(report => report.id === id)
 }
 
+export async function fetchMyReports(): Promise<MyReportRecord[]> {
+  try {
+    const response = await apis.pcQc.myReports()
+    const payload = unwrapData<unknown>(response)
+    if (Array.isArray(payload))
+      return payload.map(normalizeReport)
+  }
+  catch {
+    // 本地预览或后端未部署时使用本地记录
+  }
+  return getMyReports()
+}
+
+export async function fetchMyReportById(id: string): Promise<MyReportRecord | undefined> {
+  try {
+    const response = await apis.pcQc.reportDetail(id)
+    const payload = unwrapData<unknown>(response)
+    if (payload && typeof payload === 'object')
+      return normalizeReport(payload as Record<string, unknown>)
+  }
+  catch {
+    // 本地预览或后端未部署时使用本地记录
+  }
+  return getMyReportById(id)
+}
+
 export function reportStatusLabel(status: ReportProcessStatus): string {
   return status === 'pending' ? '未处理' : '已处理'
 }
@@ -108,4 +135,47 @@ export function addMyReport(input: CreateMyReportInput): MyReportRecord {
   }
   saveUserReports([record, ...loadUserReports()])
   return record
+}
+
+export async function createMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
+  try {
+    const response = await apis.pcQc.createReport({
+      category: input.category,
+      variety: input.variety,
+      imageUrl: input.imagePath,
+      imageCaption: '上报附图',
+      description: input.description,
+    })
+    const payload = unwrapData<unknown>(response)
+    if (payload && typeof payload === 'object')
+      return normalizeReport(payload as Record<string, unknown>)
+  }
+  catch {
+    // 本地预览或后端未部署时写入本地记录
+  }
+  return addMyReport(input)
+}
+
+function unwrapData<T>(response: unknown): T | undefined {
+  if (!response || typeof response !== 'object')
+    return undefined
+  const body = response as Record<string, unknown>
+  if ('data' in body)
+    return body.data as T
+  return response as T
+}
+
+function normalizeReport(raw: Record<string, unknown>): MyReportRecord {
+  const submittedAt = String(raw.submittedAt || raw.createTime || '')
+  return {
+    id: String(raw.id || raw.reportId || ''),
+    submitter: String(raw.submitter || ''),
+    submittedAt: submittedAt || formatSubmittedAt(new Date()),
+    category: String(raw.category || ''),
+    variety: String(raw.variety || ''),
+    imageCaption: String(raw.imageCaption || '上报附图'),
+    imagePath: String(raw.imagePath || raw.imageUrl || ''),
+    description: String(raw.description || ''),
+    status: raw.status === 'done' ? 'done' : 'pending',
+  }
 }

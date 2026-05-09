@@ -140,21 +140,12 @@ function goReport() {
       :style="{ paddingTop: `${statusBarHeight}px` }"
     >
       <view class="header-row">
-        <view>
+        <view class="brand-copy">
           <text class="brand-title">
             品检图例
           </text>
           <text class="brand-subtitle">
             Quality Samples
-          </text>
-        </view>
-        <view class="wechat-pill">
-          <text class="dot-text">
-            ···
-          </text>
-          <view class="pill-divider" />
-          <text class="circle-text">
-            ○
           </text>
         </view>
       </view>
@@ -409,6 +400,10 @@ function goReport() {
   height: 96rpx;
 }
 
+.brand-copy {
+  max-width: calc(100vw - 300rpx);
+}
+
 .brand-title,
 .brand-subtitle {
   display: block;
@@ -426,32 +421,6 @@ function goReport() {
   margin-top: 4rpx;
   font-size: 24rpx;
   opacity: 0.8;
-}
-
-.wechat-pill {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 174rpx;
-  height: 64rpx;
-  border: 1rpx solid rgba(151, 151, 151, 0.2);
-  border-radius: 32rpx;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.dot-text,
-.circle-text {
-  width: 78rpx;
-  text-align: center;
-  color: #111;
-  font-size: 30rpx;
-  line-height: 64rpx;
-}
-
-.pill-divider {
-  width: 1rpx;
-  height: 36rpx;
-  background: rgba(0, 0, 0, 0.2);
 }
 
 .content-shell {

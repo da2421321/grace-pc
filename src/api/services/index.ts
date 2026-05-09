@@ -256,6 +256,35 @@ export interface UserInfoResponse {
 
 export type DictQuery = Record<string, string | number | undefined>
 
+export interface PcQualityImageItem {
+  id: string
+  enabled: boolean
+  imageUrl: string
+  varietyName: string
+  varietyCode: string
+  categoryPath: string[]
+  topCategory: string
+  groupKey?: string
+  description?: string
+}
+
+export interface PcQualityImageResponse {
+  items: PcQualityImageItem[]
+}
+
+export interface PcQualityReportCreateRequest {
+  category: string
+  variety: string
+  imageUrl: string
+  imageCaption?: string
+  description: string
+}
+
+export interface PcQualityReportStatusRequest {
+  status: 'pending' | 'done'
+  handleRemark?: string
+}
+
 export class Api<SecurityDataType extends unknown> {
   http: HttpClient<SecurityDataType>
 
@@ -446,6 +475,56 @@ export class Api<SecurityDataType extends unknown> {
       this.http.request<any>({
         path: '/system/dict/type/optionselect',
         method: 'GET',
+        ...params,
+      }),
+  }
+
+  pcQc = {
+    qualityImages: (
+      query?: {
+        topCategory?: string
+        categoryPath?: string
+        varietyCode?: string
+        keyword?: string
+      },
+      params: RequestParams = {},
+    ) =>
+      this.http.request<any>({
+        path: '/front/pc/qc/quality-images',
+        method: 'GET',
+        query,
+        ...params,
+      }),
+    createReport: (data: PcQualityReportCreateRequest, params: RequestParams = {}) =>
+      this.http.request<any>({
+        path: '/front/pc/qc/reports',
+        method: 'POST',
+        body: data,
+        type: ContentType.Json,
+        ...params,
+      }),
+    myReports: (params: RequestParams = {}) =>
+      this.http.request<any>({
+        path: '/front/pc/qc/reports',
+        method: 'GET',
+        ...params,
+      }),
+    reportDetail: (reportId: string | number, params: RequestParams = {}) =>
+      this.http.request<any>({
+        path: `/front/pc/qc/reports/${reportId}`,
+        method: 'GET',
+        ...params,
+      }),
+    updateReportStatus: (
+      reportId: string | number,
+      data: PcQualityReportStatusRequest,
+      params: RequestParams = {},
+    ) =>
+      this.http.request<any>({
+        path: `/front/pc/qc/reports/${reportId}/status`,
+        method: 'PUT',
+        body: data,
+        type: ContentType.Json,
         ...params,
       }),
   }

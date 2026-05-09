@@ -154,3 +154,18 @@ export function uploadAvatar(filePath: string, name = 'avatarfile') {
     name,
   })
 }
+
+export interface CommonUploadResponse {
+  url: string
+  fileName?: string
+  newFileName?: string
+  originalFilename?: string
+}
+
+export function uploadCommon(filePath: string, name = 'file') {
+  return upload<CommonUploadResponse>({
+    url: '/common/upload',
+    filePath,
+    name,
+  })
+}

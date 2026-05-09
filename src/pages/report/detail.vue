@@ -2,13 +2,13 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import ReportStatusBadge from '@/components/report-status-badge.vue'
-import { getMyReportById, type MyReportRecord } from '@/data/reports'
+import { fetchMyReportById, type MyReportRecord } from '@/data/reports'
 
 const report = ref<MyReportRecord>()
 
-onLoad((query = {}) => {
+onLoad(async (query = {}) => {
   const id = typeof query.id === 'string' ? decodeURIComponent(query.id) : ''
-  report.value = id ? getMyReportById(id) : undefined
+  report.value = id ? await fetchMyReportById(id) : undefined
 })
 
 function goBack() {
