@@ -1,0 +1,38 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E8F5E9"/>
+      <stop offset="1" stop-color="#F5F7FA"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2E8B57"/>
+      <stop offset="1" stop-color="#1B5E20"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#2E8B57" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="900" rx="44" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <path d="M430 180c52-44 104-66 170-66s118 22 170 66l70 60v430c0 64-52 116-116 116H476c-64 0-116-52-116-116V240l70-60z"
+          fill="#FFFFFF" stroke="rgba(46,139,87,0.22)" stroke-width="10" />
+    <!-- lapels -->
+    <path d="M600 230l-110 120 110 90 110-90-110-120z" fill="rgba(46,139,87,0.10)" stroke="url(#accent)" stroke-width="12" />
+    <!-- buttons -->
+    <g fill="#2E8B57" opacity="0.65">
+      <circle cx="600" cy="430" r="12"/>
+      <circle cx="600" cy="520" r="12"/>
+      <circle cx="600" cy="610" r="12"/>
+    </g>
+    <!-- pockets -->
+    <rect x="460" y="560" width="180" height="120" rx="22" fill="rgba(46,139,87,0.08)" stroke="rgba(27,94,32,0.18)" stroke-width="8"/>
+    <rect x="660" y="560" width="180" height="120" rx="22" fill="rgba(46,139,87,0.08)" stroke="rgba(27,94,32,0.18)" stroke-width="8"/>
+  </g>
+
+  <g opacity="0.08">
+    <path d="M140 160c140 40 260 40 400 0s260-40 520 0" stroke="#1B5E20" stroke-width="16" stroke-linecap="round"/>
+    <path d="M120 820c160-70 300-70 460 0s300 70 520 0" stroke="#2E8B57" stroke-width="14" stroke-linecap="round"/>
+  </g>
+</svg>

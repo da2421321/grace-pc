@@ -1,6 +1,43 @@
 {
   "pages": [
     {
+      "path": "pages/index",
+      "style": {
+        "navigationBarTitleText": "品检图例",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/work/index",
+      "style": {
+        "navigationBarTitleText": "图片上报"
+      }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/report/success",
+      "style": {
+        "navigationBarTitleText": "提交成功"
+      }
+    },
+    {
+      "path": "pages/report/list",
+      "style": {
+        "navigationBarTitleText": "我的上报记录"
+      }
+    },
+    {
+      "path": "pages/report/detail",
+      "style": {
+        "navigationBarTitleText": "上报详情"
+      }
+    },
+    {
       "path": "pages/login",
       "style": {
         "navigationBarTitleText": "登录"
@@ -10,25 +47,6 @@
       "path": "pages/register",
       "style": {
         "navigationBarTitleText": "注册"
-      }
-    },
-    {
-      "path": "pages/index",
-      "style": {
-        "navigationBarTitleText": "若依移动端框架",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/work/index",
-      "style": {
-        "navigationBarTitleText": "工作台"
-      }
-    },
-    {
-      "path": "pages/mine/index",
-      "style": {
-        "navigationBarTitleText": "我的"
       }
     },
     {
@@ -87,8 +105,8 @@
     }
   ],
   "tabBar": {
-    "color": "#000000",
-    "selectedColor": "#000000",
+    "color": "#777978",
+    "selectedColor": "#2E8B57",
     "borderStyle": "white",
     "backgroundColor": "#ffffff",
     "list": [
@@ -102,7 +120,7 @@
         "pagePath": "pages/work/index",
         "iconPath": "static/images/tabbar/work.png",
         "selectedIconPath": "static/images/tabbar/work_.png",
-        "text": "工作台"
+        "text": "上报"
       },
       {
         "pagePath": "pages/mine/index",
@@ -114,7 +132,7 @@
   },
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "RuoYi",
+    "navigationBarTitleText": "品检图例",
     "navigationBarBackgroundColor": "#FFFFFF"
   },
   "easycom": {
