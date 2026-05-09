@@ -3,21 +3,21 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
-  buildSearchHaystack,
   fetchQualityImages,
-  fuzzyMatch,
   getCategoryLevelOptions,
   getFullCategoryPath,
   getItemsAfterTop,
   getTopCategoryOptions,
   getVarietyOptions,
   type QualityImageItem,
+  type QualityImageQuery,
 } from '@/data/qc'
 
 const statusBarHeight = ref(44)
 const loading = ref(true)
 const loadError = ref('')
 const items = ref<QualityImageItem[]>([])
+const catalogItems = ref<QualityImageItem[]>([])
 const searchDraft = ref('')
 const appliedSearchQuery = ref('')
 const selectedTop = ref(ALL_VALUE)
@@ -25,32 +25,16 @@ const selectedCategoryPath = ref<string[]>([])
 const selectedVariety = ref(ALL_VALUE)
 const categoryStep = ref(0)
 const detailItem = ref<QualityImageItem>()
+let queryRequestId = 0
 
-const topCategoryOptions = computed(() => getTopCategoryOptions(items.value))
-const itemsAfterTop = computed(() => getItemsAfterTop(items.value, selectedTop.value))
+const topCategoryOptions = computed(() => getTopCategoryOptions(catalogItems.value))
+const itemsAfterTop = computed(() => getItemsAfterTop(catalogItems.value, selectedTop.value))
 const categoryLevelOptions = computed(() => getCategoryLevelOptions(itemsAfterTop.value, selectedCategoryPath.value))
 const safeCategoryStep = computed(() => Math.min(categoryStep.value, Math.max(0, categoryLevelOptions.value.length - 1)))
 const currentLevelOptions = computed(() => categoryLevelOptions.value[safeCategoryStep.value] ?? [])
 const showLeftNav = computed(() => currentLevelOptions.value.length > 0)
 const varietyOptions = computed(() => getVarietyOptions(itemsAfterTop.value, selectedCategoryPath.value))
-
-const filteredItems = computed(() => {
-  return items.value.filter((item) => {
-    if (selectedTop.value !== ALL_VALUE && (item.topCategory || item.categoryPath[0]) !== selectedTop.value)
-      return false
-
-    const categoryPrefix = selectedCategoryPath.value.filter(value => value !== ALL_VALUE)
-    for (let index = 0; index < categoryPrefix.length; index++) {
-      if (item.categoryPath[index + 1] !== categoryPrefix[index])
-        return false
-    }
-
-    if (selectedVariety.value !== ALL_VALUE && item.varietyCode !== selectedVariety.value)
-      return false
-
-    return fuzzyMatch(buildSearchHaystack(item), appliedSearchQuery.value)
-  })
-})
+const filteredItems = computed(() => items.value)
 
 onLoad(() => {
   try {
@@ -67,6 +51,7 @@ async function load() {
   loadError.value = ''
   try {
     const response = await fetchQualityImages()
+    catalogItems.value = response.items
     items.value = response.items
   }
   catch (error) {
@@ -77,8 +62,46 @@ async function load() {
   }
 }
 
+async function loadResults() {
+  const requestId = ++queryRequestId
+  loading.value = true
+  loadError.value = ''
+  try {
+    const response = await fetchQualityImages(buildQueryParams())
+    if (requestId === queryRequestId)
+      items.value = response.items
+  }
+  catch (error) {
+    if (requestId === queryRequestId)
+      loadError.value = error instanceof Error ? error.message : '查询失败，请稍后重试'
+  }
+  finally {
+    if (requestId === queryRequestId)
+      loading.value = false
+  }
+}
+
+function buildQueryParams(): QualityImageQuery {
+  const query: QualityImageQuery = {}
+  const categoryPath = selectedCategoryPath.value
+    .filter(value => value && value !== ALL_VALUE)
+    .join('/')
+
+  if (selectedTop.value !== ALL_VALUE)
+    query.topCategory = selectedTop.value
+  if (categoryPath)
+    query.categoryPath = categoryPath
+  if (selectedVariety.value !== ALL_VALUE)
+    query.varietyCode = selectedVariety.value
+  if (appliedSearchQuery.value)
+    query.keyword = appliedSearchQuery.value
+
+  return query
+}
+
 function applySearch() {
   appliedSearchQuery.value = searchDraft.value.trim()
+  loadResults()
 }
 
 function selectTop(value: string) {
@@ -86,6 +109,7 @@ function selectTop(value: string) {
   selectedCategoryPath.value = []
   selectedVariety.value = ALL_VALUE
   categoryStep.value = 0
+  loadResults()
 }
 
 function selectCategory(value: string) {
@@ -96,6 +120,7 @@ function selectCategory(value: string) {
   selectedVariety.value = ALL_VALUE
   if (value !== ALL_VALUE && step < categoryLevelOptions.value.length - 1)
     categoryStep.value = step + 1
+  loadResults()
 }
 
 function goBackCategoryLevel() {
@@ -105,10 +130,12 @@ function goBackCategoryLevel() {
   selectedCategoryPath.value = selectedCategoryPath.value.slice(0, nextStep)
   selectedVariety.value = ALL_VALUE
   categoryStep.value = nextStep
+  loadResults()
 }
 
 function selectVariety(value: string) {
   selectedVariety.value = value
+  loadResults()
 }
 
 function openDetail(item: QualityImageItem) {
@@ -122,10 +149,14 @@ function closeDetail() {
 function previewImage(item: QualityImageItem) {
   if (!item.imageUrl)
     return
-  uni.previewImage({
-    urls: [item.imageUrl],
-    current: item.imageUrl,
-  })
+  const imageUrl = item.imageUrl
+  closeDetail()
+  setTimeout(() => {
+    uni.previewImage({
+      urls: [imageUrl],
+      current: imageUrl,
+    })
+  }, 80)
 }
 
 function goReport() {
@@ -347,7 +378,12 @@ function goReport() {
             mode="aspectFit"
           />
         </view>
-        <view class="detail-info">
+        <scroll-view
+          class="detail-info"
+          scroll-y
+          :show-scrollbar="false"
+        >
+          <view class="detail-info-inner">
           <text class="detail-label">
             品类
           </text>
@@ -372,7 +408,8 @@ function goReport() {
           >
             预览图片
           </button>
-        </view>
+          </view>
+        </scroll-view>
       </view>
     </view>
   </view>
@@ -806,8 +843,12 @@ function goReport() {
 
 .detail-panel {
   position: relative;
+  display: flex;
+  min-height: 0;
   width: 100%;
+  height: 92vh;
   max-height: 92vh;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 28rpx 28rpx 0 0;
   background: #111;
@@ -832,9 +873,13 @@ function goReport() {
 
 .detail-image-box {
   display: flex;
-  height: 620rpx;
+  height: 48vh;
+  min-height: 260rpx;
+  max-height: 620rpx;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   padding: 80rpx 16rpx 16rpx;
 }
 
@@ -844,12 +889,15 @@ function goReport() {
 }
 
 .detail-info {
-  display: flex;
-  max-height: 420rpx;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: 22rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  min-height: 0;
+  flex: 1;
   border-top: 1rpx solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-info-inner {
+  display: flex;
+  flex-direction: column;
+  padding: 22rpx 28rpx calc(40rpx + env(safe-area-inset-bottom));
 }
 
 .detail-label {
@@ -870,6 +918,7 @@ function goReport() {
 }
 
 .preview-button {
+  flex-shrink: 0;
   height: 72rpx;
   margin: 24rpx 0 0;
   border-radius: 20rpx;

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import { useUserStore } from '@/store/user'
 import {
   ADMIN_CONTACT,
   clearInternalSession,
   getCurrentUser,
+  setCurrentUser,
   updateInternalPassword,
   verifyInternalPassword,
   type InternalUser,
@@ -12,6 +14,7 @@ import {
 
 type SheetKind = 'info' | 'pwd' | 'admin' | ''
 
+const userStore = useUserStore()
 const user = ref<InternalUser>(getCurrentUser())
 const sheet = ref<SheetKind>('')
 const pwdOld = ref('')
@@ -26,8 +29,39 @@ const initials = computed(() => {
 })
 
 onShow(() => {
-  user.value = getCurrentUser()
+  loadUserInfo()
 })
+
+async function loadUserInfo() {
+  if (!userStore.token) {
+    user.value = getCurrentUser()
+    return
+  }
+
+  try {
+    const response = await userStore.fetchProfile()
+    const nextUser = normalizeUserInfo(response.user)
+    setCurrentUser(nextUser)
+    user.value = nextUser
+  }
+  catch {
+    user.value = getCurrentUser()
+  }
+}
+
+function normalizeUserInfo(raw: Record<string, unknown> = {}): InternalUser {
+  const dept = raw.dept && typeof raw.dept === 'object'
+    ? raw.dept as Record<string, unknown>
+    : {}
+
+  return {
+    id: String(raw.userId ?? raw.id ?? ''),
+    name: String(raw.nickName || raw.userName || raw.name || ''),
+    dept: String(dept.deptName || raw.deptName || ''),
+    email: String(raw.email || ''),
+    phone: String(raw.phonenumber || raw.phone || ''),
+  }
+}
 
 function openSheet(kind: SheetKind) {
   sheet.value = kind
@@ -84,9 +118,10 @@ function logout() {
   uni.showModal({
     title: '退出登录',
     content: '确定退出当前账号？',
-    success: (res) => {
+    success: async (res) => {
       if (!res.confirm)
         return
+      await userStore.logout()
       clearInternalSession()
       user.value = getCurrentUser()
       uni.showToast({ title: '已退出', icon: 'none' })

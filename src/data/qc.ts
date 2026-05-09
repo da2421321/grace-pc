@@ -24,6 +24,15 @@ export interface QualityImageApiResponse {
   items: QualityImageItem[]
 }
 
+export interface QualityImageQuery {
+  topCategory?: string
+  categoryPath?: string
+  varietyCode?: string
+  keyword?: string
+}
+
+const baseUrl = import.meta.env.VITE_APP_BASE_URL || ''
+
 const MOCK_ITEMS: QualityImageItem[] = [
   {
     id: 'img_001',
@@ -85,11 +94,11 @@ const MOCK_ITEMS: QualityImageItem[] = [
   },
 ]
 
-export async function fetchQualityImages(): Promise<QualityImageApiResponse> {
+export async function fetchQualityImages(query?: QualityImageQuery): Promise<QualityImageApiResponse> {
   try {
-    const response = await apis.pcQc.qualityImages()
+    const response = await apis.pcQc.qualityImages(query)
     const payload = unwrapData<QualityImageApiResponse>(response)
-    if (payload?.items?.length) {
+    if (payload && Array.isArray(payload.items)) {
       return {
         items: payload.items.map(normalizeImageItem),
       }
@@ -100,7 +109,7 @@ export async function fetchQualityImages(): Promise<QualityImageApiResponse> {
   }
 
   return {
-    items: MOCK_ITEMS.filter(item => item.enabled),
+    items: filterMockItems(query).map(normalizeImageItem),
   }
 }
 
@@ -117,9 +126,37 @@ function normalizeImageItem(item: QualityImageItem): QualityImageItem {
   return {
     ...item,
     enabled: item.enabled !== false,
+    imageUrl: resolveImageUrl(item.imageUrl),
     categoryPath: Array.isArray(item.categoryPath) ? item.categoryPath : [],
     topCategory: item.topCategory || item.categoryPath?.[0] || '未分类',
   }
+}
+
+function resolveImageUrl(url: string) {
+  if (!url || /^https?:\/\//.test(url) || url.startsWith('/static/'))
+    return url
+  if (url.startsWith('/'))
+    return `${baseUrl}${url}`
+  return url
+}
+
+function filterMockItems(query?: QualityImageQuery) {
+  const params = query ?? {}
+  const categoryPath = params.categoryPath?.replace(/ \/ /g, '/').trim()
+
+  return MOCK_ITEMS.filter((item) => {
+    if (!item.enabled)
+      return false
+    if (params.topCategory && item.topCategory !== params.topCategory)
+      return false
+    if (categoryPath && !item.categoryPath.join('/').includes(categoryPath))
+      return false
+    if (params.varietyCode && item.varietyCode !== params.varietyCode)
+      return false
+    if (params.keyword && !fuzzyMatch(buildSearchHaystack(item), params.keyword))
+      return false
+    return true
+  })
 }
 
 export function getTopCategoryOptions(items: QualityImageItem[]): FilterOption[] {
