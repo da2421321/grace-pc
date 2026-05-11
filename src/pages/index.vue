@@ -9,6 +9,7 @@ import {
   getItemsAfterTop,
   getTopCategoryOptions,
   getVarietyOptions,
+  type FilterOption,
   type QualityImageItem,
   type QualityImageQuery,
 } from '@/data/qc'
@@ -28,12 +29,15 @@ const detailItem = ref<QualityImageItem>()
 let queryRequestId = 0
 
 const topCategoryOptions = computed(() => getTopCategoryOptions(catalogItems.value))
+const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
 const itemsAfterTop = computed(() => getItemsAfterTop(catalogItems.value, selectedTop.value))
 const categoryLevelOptions = computed(() => getCategoryLevelOptions(itemsAfterTop.value, selectedCategoryPath.value))
 const safeCategoryStep = computed(() => Math.min(categoryStep.value, Math.max(0, categoryLevelOptions.value.length - 1)))
 const currentLevelOptions = computed(() => categoryLevelOptions.value[safeCategoryStep.value] ?? [])
-const showLeftNav = computed(() => currentLevelOptions.value.length > 0)
+const categoryNavOptions = computed(() => currentLevelOptions.value.map(option => formatCategoryOption(option)))
+const showLeftNav = computed(() => categoryNavOptions.value.length > 0)
 const varietyOptions = computed(() => getVarietyOptions(itemsAfterTop.value, selectedCategoryPath.value))
+const varietyChips = computed(() => varietyOptions.value.map(option => formatVarietyOption(option)))
 const filteredItems = computed(() => items.value)
 
 onLoad(() => {
@@ -160,17 +164,42 @@ function previewImage(item: QualityImageItem) {
 }
 
 function goReport() {
-  uni.switchTab({ url: '/pages/work/index' })
+  uni.navigateTo({ url: '/pages/report/create' })
+}
+
+function formatTopOption(option: FilterOption): FilterOption {
+  return {
+    ...option,
+    label: option.value === ALL_VALUE ? '全部' : option.label,
+  }
+}
+
+function formatCategoryOption(option: FilterOption): FilterOption {
+  if (option.value === ALL_VALUE)
+    return { ...option, label: '全部' }
+  return {
+    ...option,
+    label: option.label === '环保材质' ? '环保材料' : option.label,
+  }
+}
+
+function formatVarietyOption(option: FilterOption): FilterOption {
+  if (option.value === ALL_VALUE)
+    return { ...option, label: '全部' }
+  return {
+    ...option,
+    label: option.label.replace(/\s*\([^)]*\)\s*$/, ''),
+  }
 }
 </script>
 
 <template>
   <view class="home-page">
     <view
-      class="home-header"
+      class="hero"
       :style="{ paddingTop: `${statusBarHeight}px` }"
     >
-      <view class="header-row">
+      <view class="hero-main">
         <view class="brand-copy">
           <text class="brand-title">
             品检图例
@@ -179,16 +208,20 @@ function goReport() {
             Quality Samples
           </text>
         </view>
+        <image
+          class="hero-visual"
+          src="/static/images/qc/home_hero.svg"
+          mode="aspectFit"
+        />
       </view>
-    </view>
 
-    <view class="content-shell">
       <view class="search-row">
+        <view class="search-icon" />
         <input
           v-model="searchDraft"
           class="search-input"
           confirm-type="search"
-          placeholder="搜索品种 / 品类"
+          placeholder="搜索品种、类目"
           placeholder-class="placeholder"
           @confirm="applySearch"
         >
@@ -196,10 +229,12 @@ function goReport() {
           class="search-button"
           @click="applySearch"
         >
-          查询
+          搜索
         </button>
       </view>
+    </view>
 
+    <view class="body-shell">
       <scroll-view
         class="top-tabs"
         scroll-x
@@ -207,27 +242,28 @@ function goReport() {
       >
         <view class="top-tabs-inner">
           <button
-            v-for="option in topCategoryOptions"
+            v-for="option in topTabs"
             :key="option.value"
             :class="['top-tab', option.value === selectedTop ? 'top-tab-active' : '']"
             @click="selectTop(option.value)"
           >
-            {{ option.label }}
+            <text>{{ option.label }}</text>
+            <view class="top-tab-line" />
           </button>
         </view>
       </scroll-view>
 
       <view
         v-if="loading"
-        class="state-box"
+        class="state-panel"
       >
-        <view class="loading-dot" />
+        <view class="loading-mark" />
         <text>正在加载品质图片...</text>
       </view>
 
       <view
         v-else-if="loadError"
-        class="state-box white-state"
+        class="state-panel state-panel-error"
       >
         <text class="state-title">
           网络异常
@@ -253,18 +289,15 @@ function goReport() {
           scroll-y
           :show-scrollbar="false"
         >
-          <view class="category-title">
-            <button
-              v-if="safeCategoryStep > 0"
-              class="category-back"
-              @click="goBackCategoryLevel"
-            >
-              ‹ 返回上一级
-            </button>
-            <text>第 {{ safeCategoryStep + 2 }} 级类目</text>
-          </view>
           <button
-            v-for="option in currentLevelOptions"
+            v-if="safeCategoryStep > 0"
+            class="category-item category-back"
+            @click="goBackCategoryLevel"
+          >
+            返回
+          </button>
+          <button
+            v-for="option in categoryNavOptions"
             :key="option.value"
             :class="[
               'category-item',
@@ -277,24 +310,32 @@ function goReport() {
         </scroll-view>
 
         <view class="result-area">
-          <view class="variety-title">
-            品种
-          </view>
-          <view class="variety-list">
-            <button
-              v-for="option in varietyOptions"
-              :key="option.value"
-              :class="['variety-chip', option.value === selectedVariety ? 'variety-chip-active' : '']"
-              @click="selectVariety(option.value)"
-            >
-              {{ option.label }}
-            </button>
-          </view>
+          <scroll-view
+            class="variety-scroll"
+            scroll-x
+            :show-scrollbar="false"
+          >
+            <view class="variety-list">
+              <button
+                v-for="option in varietyChips"
+                :key="option.value"
+                :class="['variety-chip', option.value === selectedVariety ? 'variety-chip-active' : '']"
+                @click="selectVariety(option.value)"
+              >
+                {{ option.label }}
+              </button>
+            </view>
+          </scroll-view>
 
           <view
             v-if="filteredItems.length === 0"
-            class="empty-card"
+            class="empty-state"
           >
+            <image
+              class="empty-illustration"
+              src="/static/images/qc/sous.png"
+              mode="aspectFit"
+            />
             <text class="empty-title">
               暂无相关品质图片
             </text>
@@ -328,14 +369,8 @@ function goReport() {
                 </text>
               </view>
               <view class="card-body">
-                <text
-                  v-if="item.description"
-                  class="card-desc"
-                >
-                  {{ item.description }}
-                </text>
                 <text class="card-title">
-                  {{ item.varietyName }} ({{ item.varietyCode }})
+                  {{ item.varietyName }}
                 </text>
                 <text class="card-meta">
                   {{ getFullCategoryPath(item) }}
@@ -384,30 +419,30 @@ function goReport() {
           :show-scrollbar="false"
         >
           <view class="detail-info-inner">
-          <text class="detail-label">
-            品类
-          </text>
-          <text class="detail-value">
-            {{ getFullCategoryPath(detailItem) }}
-          </text>
-          <text class="detail-label mt">
-            品种
-          </text>
-          <text class="detail-value">
-            {{ detailItem.varietyName }} ({{ detailItem.varietyCode }})
-          </text>
-          <text class="detail-label mt">
-            描述
-          </text>
-          <text class="detail-desc">
-            {{ detailItem.description || '暂无描述' }}
-          </text>
-          <button
-            class="preview-button"
-            @click="previewImage(detailItem)"
-          >
-            预览图片
-          </button>
+            <text class="detail-label">
+              品类
+            </text>
+            <text class="detail-value">
+              {{ getFullCategoryPath(detailItem) }}
+            </text>
+            <text class="detail-label mt">
+              品种
+            </text>
+            <text class="detail-value">
+              {{ detailItem.varietyName }} ({{ detailItem.varietyCode }})
+            </text>
+            <text class="detail-label mt">
+              描述
+            </text>
+            <text class="detail-desc">
+              {{ detailItem.description || '暂无描述' }}
+            </text>
+            <button
+              class="preview-button"
+              @click="previewImage(detailItem)"
+            >
+              预览图片
+            </button>
           </view>
         </scroll-view>
       </view>
@@ -420,313 +455,362 @@ function goReport() {
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
-  background: linear-gradient(180deg, #2e8b57 0%, #6bc49a 20%, #bfead3 45%, #e8f5e9 70%, #f2fbf5 100%);
-  color: #25262b;
+  background: linear-gradient(180deg, #efffdf 0%, #f7fff0 280rpx, #fff 520rpx);
+  color: #171a22;
 }
 
-.home-header {
-  padding-left: 32rpx;
-  padding-right: 32rpx;
-  padding-bottom: 24rpx;
+.hero {
+  box-sizing: border-box;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+  padding-bottom: 22rpx;
+  background:
+    radial-gradient(circle at 78% 22%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 30%),
+    linear-gradient(152deg, #caff62 0%, #dfff8b 48%, #ecffd0 100%);
 }
 
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 96rpx;
+.hero-main {
+  position: relative;
+  height: 188rpx;
 }
 
 .brand-copy {
-  max-width: calc(100vw - 300rpx);
+  position: absolute;
+  z-index: 2;
+  left: 16rpx;
+  bottom: 10rpx;
 }
 
 .brand-title,
 .brand-subtitle {
   display: block;
-  color: #fff;
+  color: #171a22;
 }
 
 .brand-title {
-  font-size: 36rpx;
-  font-weight: 700;
-  line-height: 42rpx;
+  font-size: 54rpx;
+  font-weight: 900;
   letter-spacing: 4rpx;
+  line-height: 58rpx;
 }
 
 .brand-subtitle {
   margin-top: 4rpx;
-  font-size: 24rpx;
-  opacity: 0.8;
+  font-size: 36rpx;
+  font-weight: 500;
+  line-height: 42rpx;
 }
 
-.content-shell {
-  margin: 0 24rpx;
-  padding: 20rpx 18rpx 150rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.55);
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.66);
+.hero-visual {
+  position: absolute;
+  right: -12rpx;
+  top: -8rpx;
+  width: 306rpx;
+  height: 190rpx;
 }
 
 .search-row {
   display: flex;
+  height: 62rpx;
   align-items: center;
-  gap: 12rpx;
+  box-sizing: border-box;
+  padding: 0 7rpx 0 26rpx;
+  border: 2rpx solid #93dc10;
+  border-radius: 16rpx;
+  background: #fff;
+}
+
+.search-icon {
+  position: relative;
+  width: 28rpx;
+  height: 28rpx;
+  flex-shrink: 0;
+  margin-right: 14rpx;
+}
+
+.search-icon::before {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18rpx;
+  height: 18rpx;
+  border: 3rpx solid #aab2c0;
+  border-radius: 50%;
+  content: '';
+}
+
+.search-icon::after {
+  position: absolute;
+  right: 2rpx;
+  bottom: 4rpx;
+  width: 12rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #aab2c0;
+  content: '';
+  transform: rotate(45deg);
 }
 
 .search-input {
-  box-sizing: border-box;
+  min-width: 0;
   flex: 1;
-  height: 66rpx;
-  border-radius: 18rpx;
-  background: #f5f7fa;
-  padding: 0 18rpx;
-  color: #25262b;
-  font-size: 26rpx;
+  height: 58rpx;
+  color: #171a22;
+  font-size: 24rpx;
+  line-height: 58rpx;
 }
 
 .placeholder {
-  color: #99a1ad;
+  color: #969da8;
 }
 
 .search-button {
   flex-shrink: 0;
-  height: 66rpx;
+  width: 66rpx;
+  height: 46rpx;
   margin: 0;
-  padding: 0 12rpx;
-  border: 0;
-  background: transparent;
-  color: #2e8b57;
-  font-size: 24rpx;
-  font-weight: 600;
-  line-height: 66rpx;
+  padding: 0;
+  border-radius: 12rpx;
+  background: #bdff22;
+  color: #161a1f;
+  font-size: 22rpx;
+  font-weight: 500;
+  line-height: 46rpx;
 }
 
-.search-button::after,
-.retry-button::after,
-.top-tab::after,
-.category-back::after,
-.category-item::after,
-.variety-chip::after,
-.image-card::after,
-.report-fab::after,
-.detail-close::after,
-.preview-button::after {
-  border: 0;
+.body-shell {
+  min-height: calc(100vh - 320rpx);
+  margin-top: 16rpx;
+  overflow: hidden;
+  border-radius: 20rpx 20rpx 0 0;
+  background: #fff;
 }
 
 .top-tabs {
   width: 100%;
-  margin-top: 16rpx;
+  height: 112rpx;
   white-space: nowrap;
+  background: #fff;
 }
 
 .top-tabs-inner {
   display: inline-flex;
-  gap: 10rpx;
-  padding-bottom: 4rpx;
+  gap: 50rpx;
+  min-width: 100%;
+  box-sizing: border-box;
+  padding: 24rpx 68rpx 0;
 }
 
 .top-tab {
-  height: 56rpx;
+  position: relative;
+  width: auto;
+  height: 88rpx;
   margin: 0;
-  padding: 0 22rpx;
-  border-radius: 999rpx;
-  background: #eef1f5;
-  color: #4b5563;
-  font-size: 24rpx;
-  font-weight: 500;
-  line-height: 56rpx;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #252932;
+  font-size: 26rpx;
+  font-weight: 400;
+  line-height: 72rpx;
   white-space: nowrap;
 }
 
 .top-tab-active {
-  background: #2f343d;
-  color: #fff;
+  color: #171a22;
+  font-weight: 500;
 }
 
-.state-box {
-  display: flex;
-  min-height: 760rpx;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20rpx;
-  color: #1b5e20;
-  font-size: 28rpx;
+.top-tab-line {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  display: none;
+  width: 58rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: #74df12;
+  transform: translateX(-50%);
 }
 
-.white-state {
-  min-height: 420rpx;
-  margin-top: 24rpx;
-  border: 1rpx solid #e8eaee;
-  border-radius: 24rpx;
-  background: #fff;
-  color: #25262b;
-}
-
-.loading-dot {
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #2e8b57, #1b5e20);
-  box-shadow: 0 12rpx 30rpx rgba(46, 139, 87, 0.25);
-}
-
-.state-title {
-  font-size: 30rpx;
-  font-weight: 700;
-}
-
-.state-desc {
-  color: #6b7280;
-  font-size: 24rpx;
-}
-
-.retry-button {
-  height: 60rpx;
-  margin: 10rpx 0 0;
-  padding: 0 28rpx;
-  border-radius: 16rpx;
-  background: #2e8b57;
-  color: #fff;
-  font-size: 24rpx;
-  line-height: 60rpx;
+.top-tab-active .top-tab-line {
+  display: block;
 }
 
 .main-panel {
   display: flex;
-  min-height: 780rpx;
-  gap: 12rpx;
-  margin-top: 16rpx;
-}
-
-.category-side {
-  width: 212rpx;
-  max-height: 820rpx;
-  flex-shrink: 0;
-  overflow: hidden;
-  border: 1rpx solid #e8eaee;
-  border-radius: 14rpx;
+  min-height: 760rpx;
   background: #fff;
 }
 
-.category-title {
-  padding: 12rpx 10rpx 10rpx;
-  border-bottom: 1rpx solid #eef0f4;
-  color: #25262b;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.category-back {
-  display: block;
-  height: 38rpx;
-  margin: 0 0 4rpx;
-  padding: 0;
-  background: transparent;
-  color: #2e8b57;
-  font-size: 22rpx;
-  line-height: 38rpx;
-  text-align: left;
+.category-side {
+  width: 188rpx;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #f7f7f7;
 }
 
 .category-item {
   display: block;
-  width: calc(100% - 16rpx);
-  margin: 10rpx 8rpx 0;
-  padding: 14rpx 8rpx 14rpx 12rpx;
-  border-left: 4rpx solid transparent;
-  border-radius: 10rpx;
+  width: 100%;
+  min-height: 96rpx;
+  margin: 0;
+  padding: 0 16rpx 0 66rpx;
+  border-radius: 0;
   background: transparent;
-  color: #4b5563;
+  color: #171a22;
   font-size: 24rpx;
-  line-height: 1.25;
+  font-weight: 400;
+  line-height: 96rpx;
   text-align: left;
 }
 
 .category-item-active {
-  border-left-color: #2e8b57;
-  background: #e8f5e9;
-  color: #1b5e20;
-  font-weight: 700;
+  width: calc(100% - 20rpx);
+  margin-left: 20rpx;
+  padding-left: 46rpx;
+  border-radius: 16rpx 0 0 16rpx;
+  background: #fff;
+  font-weight: 500;
+}
+
+.category-back {
+  color: #5d6570;
+  font-size: 22rpx;
 }
 
 .result-area {
   min-width: 0;
   flex: 1;
+  padding-top: 20rpx;
+  background: #fff;
 }
 
-.variety-title {
-  margin-bottom: 8rpx;
-  color: #6b7280;
-  font-size: 22rpx;
-  font-weight: 600;
+.variety-scroll {
+  width: 100%;
+  white-space: nowrap;
 }
 
 .variety-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8rpx;
+  display: inline-flex;
+  gap: 16rpx;
+  box-sizing: border-box;
+  min-width: 100%;
+  padding: 0 20rpx 10rpx;
 }
 
 .variety-chip {
-  min-height: 50rpx;
+  min-width: 118rpx;
+  height: 72rpx;
   margin: 0;
-  padding: 0 14rpx;
-  border: 1rpx solid #e7e9ee;
-  border-radius: 999rpx;
-  background: #fff;
-  color: #6b7280;
-  font-size: 22rpx;
-  line-height: 50rpx;
+  padding: 0 28rpx;
+  border-radius: 26rpx;
+  background: #f8f8f8;
+  color: #9a9ea7;
+  font-size: 24rpx;
+  font-weight: 400;
+  line-height: 72rpx;
+  white-space: nowrap;
 }
 
 .variety-chip-active {
-  border-color: #2e8b57;
-  background: #e8f5e9;
-  color: #1b5e20;
+  background: #282b33;
+  color: #fff;
+  font-weight: 500;
 }
 
-.empty-card {
+.state-panel {
   display: flex;
+  min-height: 760rpx;
   flex-direction: column;
   align-items: center;
-  margin-top: 18rpx;
-  padding: 36rpx 18rpx;
-  border: 1rpx solid #e8eaee;
-  border-radius: 20rpx;
+  justify-content: center;
+  gap: 18rpx;
+  color: #6f7780;
+  font-size: 24rpx;
   background: #fff;
+}
+
+.loading-mark {
+  width: 56rpx;
+  height: 56rpx;
+  border: 6rpx solid #e4f8ca;
+  border-top-color: #74df12;
+  border-radius: 50%;
+}
+
+.state-panel-error {
+  padding: 0 48rpx;
   text-align: center;
 }
 
-.empty-title {
-  color: #25262b;
-  font-size: 28rpx;
+.state-title {
+  color: #171a22;
+  font-size: 30rpx;
   font-weight: 700;
 }
 
-.empty-desc {
-  margin-top: 12rpx;
-  color: #6b7280;
+.state-desc {
+  color: #8c939d;
   font-size: 24rpx;
+  line-height: 36rpx;
+}
+
+.retry-button {
+  height: 58rpx;
+  margin: 8rpx 0 0;
+  padding: 0 30rpx;
+  border-radius: 16rpx;
+  background: #74df12;
+  color: #171a22;
+  font-size: 24rpx;
+  line-height: 58rpx;
+}
+
+.empty-state {
+  display: flex;
+  min-height: 640rpx;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 112rpx;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.empty-illustration {
+  width: 76rpx;
+  height: 76rpx;
+  margin-bottom: 18rpx;
+}
+
+.empty-title {
+  color: #8c8f96;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 34rpx;
+}
+
+.empty-desc {
+  margin-top: 4rpx;
+  color: #8c8f96;
+  font-size: 22rpx;
+  line-height: 32rpx;
 }
 
 .image-grid {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 16rpx;
-  margin-left: -6rpx;
-  margin-right: -6rpx;
+  gap: 16rpx;
+  padding: 12rpx 18rpx 160rpx;
 }
 
 .image-card {
-  width: calc(50% - 12rpx);
+  width: calc(50% - 8rpx);
   overflow: hidden;
-  margin: 0 6rpx 12rpx;
+  margin: 0;
   padding: 0;
-  border: 1rpx solid #e8eaee;
-  border-radius: 18rpx;
+  border: 1rpx solid #edf0f2;
+  border-radius: 16rpx;
   background: #fff;
   text-align: left;
 }
@@ -734,13 +818,13 @@ function goReport() {
 .image-wrap {
   position: relative;
   width: 100%;
-  height: 180rpx;
+  height: 168rpx;
   overflow: hidden;
   background: #f2f4f7;
 }
 
 .tone-green {
-  background: linear-gradient(145deg, #e8f5e9, #bfead3);
+  background: linear-gradient(145deg, #e8f5e9, #caff62);
 }
 
 .tone-orange {
@@ -760,7 +844,7 @@ function goReport() {
   position: absolute;
   left: 0;
   right: 0;
-  top: 72rpx;
+  top: 62rpx;
   color: #2e8b57;
   font-size: 28rpx;
   font-weight: 700;
@@ -769,37 +853,28 @@ function goReport() {
 
 .card-body {
   display: flex;
-  min-height: 138rpx;
+  min-height: 92rpx;
   flex-direction: column;
+  justify-content: center;
   gap: 6rpx;
-  padding: 10rpx 12rpx 12rpx;
-}
-
-.card-desc {
-  display: -webkit-box;
-  overflow: hidden;
-  color: #3d6b58;
-  font-size: 19rpx;
-  line-height: 1.35;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  padding: 10rpx 14rpx 12rpx;
 }
 
 .card-title {
   overflow: hidden;
-  color: #1a2332;
-  font-size: 20rpx;
+  color: #171a22;
+  font-size: 24rpx;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 32rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .card-meta {
   overflow: hidden;
-  color: #7b8794;
+  color: #8d949e;
   font-size: 20rpx;
-  line-height: 1.35;
+  line-height: 28rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -807,25 +882,38 @@ function goReport() {
 .report-fab {
   position: fixed;
   z-index: 20;
-  right: 28rpx;
-  bottom: calc(130rpx + env(safe-area-inset-bottom));
+  right: 60rpx;
+  bottom: calc(44rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
   display: flex;
-  width: 100rpx;
-  height: 100rpx;
+  width: 96rpx;
+  height: 96rpx;
   align-items: center;
   justify-content: center;
   margin: 0;
   padding: 0;
+  border: 4rpx solid #fff;
   border-radius: 50%;
-  background: #2e8b57;
-  box-shadow: 0 8rpx 28rpx rgba(46, 139, 87, 0.45);
+  background: #80e600;
+  box-shadow: 0 6rpx 18rpx rgba(20, 30, 16, 0.2);
 }
 
 .fab-plus {
   color: #fff;
-  font-size: 64rpx;
+  font-size: 74rpx;
   font-weight: 300;
-  line-height: 1;
+  line-height: 82rpx;
+}
+
+.search-button::after,
+.retry-button::after,
+.top-tab::after,
+.category-item::after,
+.variety-chip::after,
+.image-card::after,
+.report-fab::after,
+.detail-close::after,
+.preview-button::after {
+  border: 0;
 }
 
 .detail-mask {
@@ -922,8 +1010,8 @@ function goReport() {
   height: 72rpx;
   margin: 24rpx 0 0;
   border-radius: 20rpx;
-  background: #2e8b57;
-  color: #fff;
+  background: #80e600;
+  color: #171a22;
   font-size: 28rpx;
   font-weight: 700;
   line-height: 72rpx;
