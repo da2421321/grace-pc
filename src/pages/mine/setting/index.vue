@@ -35,7 +35,7 @@ async function handleLogout() {
   if (!res.confirm)
     return
   await userStore.logout()
-  uni.reLaunch({ url: '/pages/index' })
+  uni.reLaunch({ url: '/pages/login' })
 }
 </script>
 

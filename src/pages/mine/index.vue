@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import type { InternalUser } from '@/data/session'
 import { onShow } from '@dcloudio/uni-app'
-import { useUserStore } from '@/store/user'
+import { computed, ref } from 'vue'
+import apis from '@/api'
 import {
   ADMIN_CONTACT,
   clearInternalSession,
   getCurrentUser,
   setCurrentUser,
-  updateInternalPassword,
-  verifyInternalPassword,
-  type InternalUser,
 } from '@/data/session'
+import { useUserStore } from '@/store/user'
 
 type SheetKind = 'info' | 'pwd' | 'admin' | ''
 
@@ -20,6 +19,7 @@ const sheet = ref<SheetKind>('')
 const pwdOld = ref('')
 const pwdNew = ref('')
 const pwdAgain = ref('')
+const passwordSubmitting = ref(false)
 
 const initials = computed(() => {
   const name = user.value.name.trim()
@@ -83,13 +83,11 @@ function goReports() {
   uni.navigateTo({ url: '/pages/report/list' })
 }
 
-function submitPassword() {
+async function submitPassword() {
+  if (passwordSubmitting.value)
+    return
   if (!pwdOld.value) {
     uni.showToast({ title: '请输入当前密码', icon: 'none' })
-    return
-  }
-  if (!verifyInternalPassword(pwdOld.value)) {
-    uni.showToast({ title: '当前密码不正确', icon: 'none' })
     return
   }
   if (!pwdNew.value || pwdNew.value.length < 6) {
@@ -100,9 +98,19 @@ function submitPassword() {
     uni.showToast({ title: '两次输入的新密码不一致', icon: 'none' })
     return
   }
-  updateInternalPassword(pwdNew.value)
-  closeSheet()
-  uni.showToast({ title: '密码已更新', icon: 'success' })
+
+  passwordSubmitting.value = true
+  try {
+    await apis.user.updatePassword({
+      oldPassword: pwdOld.value,
+      newPassword: pwdNew.value,
+    })
+    closeSheet()
+    uni.showToast({ title: '密码已更新', icon: 'success' })
+  }
+  finally {
+    passwordSubmitting.value = false
+  }
 }
 
 function copyText(text: string, label: string) {
@@ -124,7 +132,7 @@ function logout() {
       await userStore.logout()
       clearInternalSession()
       user.value = getCurrentUser()
-      uni.showToast({ title: '已退出', icon: 'none' })
+      uni.reLaunch({ url: '/pages/login' })
     },
   })
 }
@@ -297,7 +305,7 @@ function logout() {
             :class="sheet === 'pwd' ? 'sheet-primary flex-one' : 'sheet-primary'"
             @click="sheet === 'pwd' ? submitPassword() : closeSheet()"
           >
-            {{ sheet === 'pwd' ? '确定' : '关闭' }}
+            {{ sheet === 'pwd' ? (passwordSubmitting ? '提交中...' : '确定') : '关闭' }}
           </button>
         </view>
       </view>

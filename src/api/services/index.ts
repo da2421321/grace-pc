@@ -175,13 +175,10 @@ export class HttpClient<SecurityDataType = unknown> {
 }
 
 export interface LoginRequest {
-  phone: string
-  captcha?: string
-  uuid?: string
+  username: string
+  password: string
   code?: string
-  spread_spid?: number
-  isCustomer?: boolean
-  type?: string
+  uuid?: string
 }
 
 export interface LoginResponse {
@@ -295,7 +292,7 @@ export class Api<SecurityDataType extends unknown> {
   auth = {
     login: (data: LoginRequest, params: RequestParams = {}) =>
       this.http.request<LoginResponse>({
-        path: '/front/wechat/login/mobile',
+        path: '/pc/login',
         method: 'POST',
         body: data,
         type: ContentType.Json,
