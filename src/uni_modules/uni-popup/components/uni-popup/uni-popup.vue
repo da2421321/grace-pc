@@ -192,25 +192,31 @@
 		},
 		mounted() {
 			const fixSize = () => {
+				let windowWidth
+				let windowHeight
+				let windowTop
+				let safeArea
+				let screenHeight
+				let safeAreaInsets
 				// #ifdef MP-WEIXIN
-				const {
+				({
 					windowWidth,
 					windowHeight,
 					windowTop,
 					safeArea,
 					screenHeight,
 					safeAreaInsets
-				} = uni.getWindowInfo()
+				} = uni.getWindowInfo())
 				// #endif
 				// #ifndef MP-WEIXIN
-				const {
+				({
 					windowWidth,
 					windowHeight,
 					windowTop,
 					safeArea,
 					screenHeight,
 					safeAreaInsets
-				} = uni.getSystemInfoSync()
+				} = uni.getSystemInfoSync())
 				// #endif
 				this.popupWidth = windowWidth
 				this.popupHeight = windowHeight + (windowTop || 0)

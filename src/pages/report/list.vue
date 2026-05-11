@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import ReportStatusBadge from '@/components/report-status-badge.vue'
-import { fetchMyReports, type MyReportRecord } from '@/data/reports'
+import { fetchMyReports, reportStatusLabel, type MyReportRecord } from '@/data/reports'
 
 const rows = ref<MyReportRecord[]>([])
+const activeTab = ref<'all' | 'pending' | 'done'>('all')
+
+const tabs = [
+  { key: 'all', label: '全部' },
+  { key: 'pending', label: '未处理' },
+  { key: 'done', label: '已处理' },
+] as const
+
+const filteredRows = computed(() => {
+  if (activeTab.value === 'all')
+    return rows.value
+  return rows.value.filter(item => item.status === activeTab.value)
+})
 
 onShow(async () => {
   rows.value = await fetchMyReports()
@@ -16,107 +28,146 @@ function goDetail(id: string) {
 </script>
 
 <template>
-  <view class="list-page">
-    <view class="page-head">
-      <text class="page-title">
-        我的上报记录
-      </text>
-      <text class="page-desc">
-        共 {{ rows.length }} 条记录，点击查看详情
-      </text>
+  <view class="page">
+    <view class="tabs">
+      <view
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="tab"
+        :class="{ active: activeTab === tab.key }"
+        @click="activeTab = tab.key"
+      >
+        {{ tab.label }}
+      </view>
     </view>
 
-    <view class="record-list">
+    <view class="list">
       <button
-        v-for="record in rows"
+        v-for="record in filteredRows"
         :key="record.id"
-        class="record-card"
+        class="card"
         @click="goDetail(record.id)"
       >
-        <view class="record-main">
-          <text class="record-title">
-            {{ record.variety }}
-          </text>
-          <text class="record-time">
-            {{ record.submittedAt }}
+        <text class="time">{{ record.submittedAt }}</text>
+        <view class="row">
+          <text class="name">{{ record.variety }}</text>
+          <text class="status" :class="record.status === 'pending' ? 'pending' : 'done'">
+            {{ reportStatusLabel(record.status) }}
           </text>
         </view>
-        <ReportStatusBadge :status="record.status" />
       </button>
     </view>
   </view>
 </template>
 
 <style scoped>
-.list-page {
+.page {
   min-height: 100vh;
-  padding: 24rpx 24rpx 60rpx;
-  background: linear-gradient(180deg, #2e8b57 0%, #6bc49a 18%, #bfead3 42%, #e8f5e9 58%, #f2fbf5 72%, #fff 100%);
+  background: #f7f7f7;
 }
 
-.page-head {
+.tabs {
   display: flex;
-  flex-direction: column;
-  padding: 12rpx 6rpx 20rpx;
+  align-items: center;
+  height: 88rpx;
+  padding: 0 68rpx;
+  color: #858585;
+  font-size: 30rpx;
+  background: #fff;
 }
 
-.page-title {
-  color: #fff;
-  font-size: 38rpx;
-  font-weight: 800;
-}
-
-.page-desc {
-  margin-top: 12rpx;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 24rpx;
-}
-
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
-.record-card {
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
-  margin: 0;
-  padding: 24rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.8);
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.06);
+.tab {
+  position: relative;
+  width: 184rpx;
+  padding-bottom: 9rpx;
   text-align: left;
 }
 
-.record-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.record-title {
-  display: block;
-  overflow: hidden;
-  color: #1a1f1c;
-  font-size: 28rpx;
+.tab.active {
+  color: #1f2329;
   font-weight: 700;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.record-time {
-  display: block;
-  margin-top: 12rpx;
-  color: #6b7a72;
-  font-size: 24rpx;
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 44rpx;
+  height: 7rpx;
+  border-radius: 999rpx;
+  background: #8ee600;
 }
 
-.record-card::after {
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  padding: 20rpx 2rpx 28rpx;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 44rpx;
+  width: 100%;
+  min-height: 218rpx;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 32rpx;
+  background: #fff;
+  border: 0;
+  border-radius: 30rpx;
+  color: inherit;
+  line-height: 1;
+  text-align: left;
+}
+
+.time {
+  color: #767a80;
+  font-size: 28rpx;
+  line-height: 1;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.name {
+  flex: 1;
+  color: #252932;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.status {
+  width: 122rpx;
+  height: 74rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 74rpx;
+  text-align: center;
+}
+
+.status.pending {
+  background: #84e600;
+  color: #141414;
+}
+
+.status.done {
+  background: #f6f6f6;
+  color: #8d8d8d;
+  font-weight: 500;
+}
+
+button::after {
   border: 0;
 }
 </style>

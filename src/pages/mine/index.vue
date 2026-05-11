@@ -83,6 +83,10 @@ function goReports() {
   uni.navigateTo({ url: '/pages/report/list' })
 }
 
+function goUserInfo() {
+  openSheet('info')
+}
+
 async function submitPassword() {
   if (passwordSubmitting.value)
     return
@@ -140,62 +144,54 @@ function logout() {
 
 <template>
   <view class="mine-page">
-    <view class="profile-card">
-      <view class="avatar">
-        {{ initials }}
+    <!-- 顶部背景 -->
+    <view class="bg-header" />
+
+    <!-- 头像组 -->
+    <view class="profile-section" @click="goUserInfo">
+      <view class="avatar-wrapper">
+        <view class="avatar">
+          {{ initials }}
+        </view>
       </view>
-      <view class="profile-main">
-        <text class="profile-name">
-          {{ user.name }}
-        </text>
-        <text class="profile-dept">
-          {{ user.dept }}
-        </text>
+      <view class="profile-info">
+        <text class="profile-name">{{ user.name }}</text>
+        <text class="profile-dept">{{ user.dept }}</text>
+      </view>
+      <view class="arrow-icon">›</view>
+    </view>
+
+    <!-- 功能卡片 -->
+    <view class="service-card">
+      <text class="service-title">我的服务</text>
+      
+      <view class="service-list">
+        <button class="service-item" @click="goReports">
+          <view class="service-icon">📋</view>
+          <text class="service-text">我的上报纪录</text>
+          <view class="service-arrow">›</view>
+        </button>
+
+        <button class="service-item" @click="openSheet('pwd')">
+          <view class="service-icon">🔒</view>
+          <text class="service-text">修改密码</text>
+          <view class="service-arrow">›</view>
+        </button>
+
+        <button class="service-item no-border" @click="openSheet('admin')">
+          <view class="service-icon">👤</view>
+          <text class="service-text">联系管理员</text>
+          <view class="service-arrow">›</view>
+        </button>
       </view>
     </view>
 
-    <button
-      class="outline-button"
-      @click="openSheet('info')"
-    >
-      查看用户信息
-    </button>
-
-    <view class="menu-card">
-      <button
-        class="menu-row"
-        @click="goReports"
-      >
-        <text>我的上报记录</text>
-        <text class="row-arrow">›</text>
-      </button>
-      <button
-        class="menu-row"
-        @click="openSheet('pwd')"
-      >
-        <text>修改密码</text>
-        <text class="row-arrow">›</text>
-      </button>
-      <button
-        class="menu-row no-border"
-        @click="openSheet('admin')"
-      >
-        <text>联系管理员</text>
-        <text class="row-arrow">›</text>
-      </button>
-    </view>
-
-    <text class="internal-note">
-      内部使用
-    </text>
-
-    <button
-      class="logout-button"
-      @click="logout"
-    >
+    <!-- 退出登录按钮 -->
+    <button class="logout-button" @click="logout">
       退出登录
     </button>
 
+    <!-- 底部弹窗 -->
     <view
       v-if="sheet"
       class="sheet-mask"
@@ -241,26 +237,29 @@ function logout() {
           class="sheet-body"
         >
           <view class="input-block">
-            <text class="input-label">当前密码</text>
+            <text class="input-label">当前密码：</text>
             <input
               v-model="pwdOld"
               class="sheet-input"
+              placeholder="请输入当前密码"
               password
             >
           </view>
           <view class="input-block">
-            <text class="input-label">新密码</text>
+            <text class="input-label">新密码：</text>
             <input
               v-model="pwdNew"
               class="sheet-input"
+              placeholder="请输入新密码"
               password
             >
           </view>
           <view class="input-block">
-            <text class="input-label">确认新密码</text>
+            <text class="input-label">确认新密码：</text>
             <input
               v-model="pwdAgain"
               class="sheet-input"
+              placeholder="再次输入新密码"
               password
             >
           </view>
@@ -316,128 +315,172 @@ function logout() {
 <style scoped>
 .mine-page {
   min-height: 100vh;
-  padding: 48rpx 24rpx 160rpx;
-  background: linear-gradient(180deg, #2e8b57 0%, #6bc49a 20%, #bfead3 45%, #e8f5e9 70%, #f2fbf5 100%);
+  padding-bottom: 160rpx;
+  background: #f7f7f7;
   color: #25262b;
 }
 
-.profile-card {
+/* 顶部背景 */
+.bg-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 421rpx;
+  background: linear-gradient(180deg, #c7f770 0%, #92e616 100%);
+  z-index: 0;
+}
+
+/* 头像组 */
+.profile-section {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 24rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 28rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.06);
+  margin: 201rpx 50rpx 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.avatar-wrapper {
+  flex-shrink: 0;
+  margin-right: 25rpx;
 }
 
 .avatar {
   display: flex;
-  width: 108rpx;
-  height: 108rpx;
-  flex-shrink: 0;
+  width: 118rpx;
+  height: 118rpx;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: linear-gradient(145deg, #2e8b57, #52b098);
-  color: #fff;
-  font-size: 32rpx;
+  background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+  border: 3rpx solid rgba(255, 255, 255, 0.8);
+  color: #25262b;
+  font-size: 34rpx;
   font-weight: 800;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
 }
 
-.profile-main {
-  min-width: 0;
+.profile-info {
   flex: 1;
+  min-width: 0;
 }
 
-.profile-name,
-.profile-dept {
+.profile-name {
   display: block;
+  color: #000;
+  font-size: 34rpx;
+  font-weight: 800;
+  line-height: 50rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.profile-name {
-  color: #25262b;
-  font-size: 34rpx;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
 .profile-dept {
+  display: block;
   margin-top: 8rpx;
-  color: #5b6b7b;
+  color: #777978;
   font-size: 24rpx;
-}
-
-.outline-button {
-  width: 100%;
-  height: 68rpx;
-  margin: 24rpx 0 0;
-  border: 1rpx solid #cfe9dc;
-  border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.92);
-  color: #2e8b57;
-  font-size: 26rpx;
-  font-weight: 700;
-  line-height: 68rpx;
-}
-
-.menu-card {
+  line-height: 50rpx;
   overflow: hidden;
-  margin-top: 22rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 0 18rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.06);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.menu-row {
+.arrow-icon {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  color: #25262b;
+  font-size: 48rpx;
+  line-height: 1;
+}
+
+/* 功能卡片 */
+.service-card {
+  position: relative;
+  z-index: 1;
+  margin: 42rpx 20rpx 0;
+  padding: 41rpx 0 0;
+  background: #fff;
+  border-radius: 30rpx;
+}
+
+.service-title {
+  display: block;
+  padding: 0 50rpx;
+  color: #25262b;
+  font-size: 28rpx;
+  font-weight: 400;
+  line-height: 34rpx;
+}
+
+.service-list {
+  margin-top: 21rpx;
+  padding: 0 50rpx;
+}
+
+.service-item {
   display: flex;
   width: 100%;
   align-items: center;
-  justify-content: space-between;
   margin: 0;
-  padding: 28rpx 6rpx;
-  border-bottom: 1rpx solid #e8eaee;
+  padding: 31rpx 0;
+  border-bottom: 2rpx solid #ebeaef;
   background: transparent;
-  color: #25262b;
-  font-size: 28rpx;
-  line-height: 1.2;
   text-align: left;
+  line-height: 1;
 }
 
-.no-border {
-  border-bottom: 0;
+.service-item.no-border {
+  border-bottom: none;
 }
 
-.row-arrow {
-  color: #b0b4bc;
-  font-size: 34rpx;
-}
-
-.internal-note {
-  display: block;
-  margin-top: 28rpx;
-  color: #6b7c88;
-  font-size: 22rpx;
+.service-icon {
+  flex-shrink: 0;
+  width: 40rpx;
+  height: 40rpx;
+  margin-right: 26rpx;
+  font-size: 32rpx;
+  line-height: 40rpx;
   text-align: center;
 }
 
-.logout-button {
-  width: 100%;
-  height: 76rpx;
-  margin: 34rpx 0 0;
-  border: 1rpx solid #f0b4b4;
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.9);
-  color: #c62828;
-  font-size: 28rpx;
-  font-weight: 700;
-  line-height: 76rpx;
+.service-text {
+  flex: 1;
+  color: #25262b;
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 34rpx;
 }
 
+.service-arrow {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  color: #25262b;
+  font-size: 40rpx;
+  line-height: 1;
+}
+
+/* 退出登录按钮 */
+.logout-button {
+  position: relative;
+  z-index: 1;
+  width: 648rpx;
+  height: 70rpx;
+  margin: 239rpx auto 0;
+  border-radius: 100rpx;
+  background: #25262b;
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 400;
+  line-height: 70rpx;
+  text-align: center;
+}
+
+/* 底部弹窗 */
 .sheet-mask {
   position: fixed;
   z-index: 60;
@@ -447,31 +490,31 @@ function logout() {
   bottom: 0;
   display: flex;
   align-items: flex-end;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .sheet-panel {
   width: 100%;
   max-height: 88vh;
   overflow: hidden;
-  border-radius: 28rpx 28rpx 0 0;
+  border-radius: 30rpx 30rpx 0 0;
   background: #fff;
-  box-shadow: 0 -16rpx 44rpx rgba(0, 0, 0, 0.18);
+  box-shadow: 0 -8rpx 40rpx rgba(0, 0, 0, 0.15);
 }
 
 .sheet-handle {
-  width: 72rpx;
-  height: 6rpx;
-  margin: 14rpx auto 0;
+  width: 80rpx;
+  height: 8rpx;
+  margin: 16rpx auto 0;
   border-radius: 999rpx;
-  background: #e5e7eb;
+  background: #f7f7f7;
 }
 
 .sheet-head {
   display: flex;
   flex-direction: column;
-  gap: 6rpx;
-  padding: 18rpx 24rpx 10rpx;
+  gap: 8rpx;
+  padding: 24rpx 32rpx 16rpx;
 }
 
 .sheet-title {
@@ -481,28 +524,32 @@ function logout() {
 }
 
 .sheet-subtitle {
-  color: #5b6b7b;
+  color: #777978;
   font-size: 24rpx;
 }
 
 .sheet-body {
   max-height: 58vh;
   overflow-y: auto;
-  padding: 0 24rpx 20rpx;
+  padding: 0 32rpx 24rpx;
 }
 
 .info-row {
   display: flex;
   justify-content: space-between;
-  gap: 18rpx;
-  border-bottom: 1rpx solid #eef0f4;
-  padding: 20rpx 0;
+  gap: 24rpx;
+  border-bottom: 2rpx solid #ebeaef;
+  padding: 24rpx 0;
+}
+
+.info-row.no-border {
+  border-bottom: none;
 }
 
 .info-key {
   flex-shrink: 0;
-  color: #8a93a1;
-  font-size: 24rpx;
+  color: #777978;
+  font-size: 26rpx;
 }
 
 .info-value {
@@ -513,79 +560,84 @@ function logout() {
 }
 
 .input-block {
-  margin-top: 16rpx;
+  margin-top: 20rpx;
 }
 
 .input-label {
   display: block;
-  margin-bottom: 8rpx;
-  color: #8a93a1;
-  font-size: 24rpx;
+  margin-bottom: 12rpx;
+  color: #25262b;
+  font-size: 26rpx;
 }
 
 .sheet-input {
   box-sizing: border-box;
   width: 100%;
-  height: 76rpx;
-  border: 1rpx solid #e1e6e3;
-  border-radius: 14rpx;
-  background: #f9fafb;
-  padding: 0 18rpx;
+  height: 100rpx;
+  border: none;
+  border-radius: 0;
+  background: #f7f7f7;
+  padding: 0 43rpx;
   color: #25262b;
   font-size: 26rpx;
+}
+
+.sheet-input::placeholder {
+  color: #777978;
 }
 
 .contact-row {
   display: flex;
   flex-direction: column;
   width: 100%;
-  margin: 14rpx 0 0;
-  padding: 18rpx;
-  border: 1rpx solid #e8eaee;
-  border-radius: 14rpx;
-  background: #f9fafb;
+  margin: 16rpx 0 0;
+  padding: 24rpx;
+  border: none;
+  border-radius: 0;
+  background: #f7f7f7;
   text-align: left;
 }
 
 .contact-key {
-  color: #8a93a1;
-  font-size: 23rpx;
+  color: #777978;
+  font-size: 24rpx;
 }
 
 .contact-value {
-  margin-top: 6rpx;
+  margin-top: 8rpx;
   color: #25262b;
-  font-size: 25rpx;
+  font-size: 26rpx;
   font-weight: 600;
 }
 
 .sheet-footer {
   display: flex;
-  gap: 12rpx;
-  border-top: 1rpx solid #eef0f4;
-  padding: 16rpx 24rpx calc(18rpx + env(safe-area-inset-bottom));
+  gap: 16rpx;
+  border-top: 2rpx solid #ebeaef;
+  padding: 15rpx 50rpx calc(15rpx + env(safe-area-inset-bottom));
 }
 
 .sheet-secondary,
 .sheet-primary {
-  height: 72rpx;
+  height: 100rpx;
   margin: 0;
-  border-radius: 16rpx;
+  border-radius: 100rpx;
   font-size: 26rpx;
-  font-weight: 700;
-  line-height: 72rpx;
+  font-weight: 400;
+  line-height: 100rpx;
+  text-align: center;
 }
 
 .sheet-secondary {
-  flex: 1;
-  border: 1rpx solid #d7e6dc;
+  width: 260rpx;
+  border: 2rpx solid #25262b;
   background: #fff;
-  color: #2e8b57;
+  color: #25262b;
 }
 
 .sheet-primary {
-  width: 100%;
-  background: #2e8b57;
+  flex: 1;
+  background: #25262b;
   color: #fff;
 }
 
@@ -594,8 +646,8 @@ function logout() {
   width: auto;
 }
 
-.outline-button::after,
-.menu-row::after,
+.profile-section::after,
+.service-item::after,
 .logout-button::after,
 .contact-row::after,
 .sheet-secondary::after,

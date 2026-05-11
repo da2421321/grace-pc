@@ -1,4 +1,4 @@
-import apis from '@/api'
+﻿import apis from '@/api'
 import { getCurrentUser } from './session'
 
 export type ReportProcessStatus = 'pending' | 'done'
@@ -30,9 +30,9 @@ const MOCK_REPORTS: MyReportRecord[] = [
     submitter: '小程序用户-张三',
     submittedAt: '2026-05-04 11:14:09',
     category: '包包 / A级 / 挎包',
-    variety: 'A41-9-A41-9-五沙厂区',
+    variety: 'A41-9-五沙厂区',
     imageCaption: '上报-A41-9',
-    description: '用户上报：颜色偏浅，建议替换主图',
+    description: '用户上报：颜色偏浅，建议更换主图',
     status: 'pending',
   },
   {
