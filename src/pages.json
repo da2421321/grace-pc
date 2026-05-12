@@ -3,120 +3,120 @@
     {
       "path": "pages/index",
       "style": {
-        "navigationBarTitleText": "鍝佹鍥句緥",
+        "navigationBarTitleText": "品检图例",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/work/index",
       "style": {
-        "navigationBarTitleText": "鍥剧墖涓婃姤",
+        "navigationBarTitleText": "图片上报",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/mine/index",
       "style": {
-        "navigationBarTitleText": "鎴戠殑",
+        "navigationBarTitleText": "我的",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/report/success",
       "style": {
-        "navigationBarTitleText": "鎻愪氦鎴愬姛"
+        "navigationBarTitleText": "提交成功"
       }
     },
     {
       "path": "pages/report/create",
       "style": {
-        "navigationBarTitleText": "鍥剧墖涓婃姤",
+        "navigationBarTitleText": "图片上报",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/report/upload",
       "style": {
-        "navigationBarTitleText": "鍥剧墖涓婃姤",
+        "navigationBarTitleText": "图片上报",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/report/list",
       "style": {
-        "navigationBarTitleText": "涓婃姤璁板綍"
+        "navigationBarTitleText": "上报记录"
       }
     },
     {
       "path": "pages/report/detail",
       "style": {
-        "navigationBarTitleText": "涓婃姤璇︽儏"
+        "navigationBarTitleText": "上报详情"
       }
     },
     {
       "path": "pages/login",
       "style": {
-        "navigationBarTitleText": "鐧诲綍"
+        "navigationBarTitleText": "登录"
       }
     },
     {
       "path": "pages/register",
       "style": {
-        "navigationBarTitleText": "娉ㄥ唽"
+        "navigationBarTitleText": "注册"
       }
     },
     {
       "path": "pages/mine/avatar/index",
       "style": {
-        "navigationBarTitleText": "淇敼澶村儚"
+        "navigationBarTitleText": "修改头像"
       }
     },
     {
       "path": "pages/mine/info/index",
       "style": {
-        "navigationBarTitleText": "涓汉淇℃伅"
+        "navigationBarTitleText": "个人信息"
       }
     },
     {
       "path": "pages/mine/info/edit",
       "style": {
-        "navigationBarTitleText": "缂栬緫璧勬枡"
+        "navigationBarTitleText": "编辑资料"
       }
     },
     {
       "path": "pages/mine/pwd/index",
       "style": {
-        "navigationBarTitleText": "淇敼瀵嗙爜"
+        "navigationBarTitleText": "修改密码"
       }
     },
     {
       "path": "pages/mine/setting/index",
       "style": {
-        "navigationBarTitleText": "搴旂敤璁剧疆"
+        "navigationBarTitleText": "应用设置"
       }
     },
     {
       "path": "pages/mine/help/index",
       "style": {
-        "navigationBarTitleText": "甯歌闂"
+        "navigationBarTitleText": "常见问题"
       }
     },
     {
       "path": "pages/mine/about/index",
       "style": {
-        "navigationBarTitleText": "鍏充簬鎴戜滑"
+        "navigationBarTitleText": "关于我们"
       }
     },
     {
       "path": "pages/common/webview/index",
       "style": {
-        "navigationBarTitleText": "娴忚缃戦〉"
+        "navigationBarTitleText": "浏览网页"
       }
     },
     {
       "path": "pages/common/textview/index",
       "style": {
-        "navigationBarTitleText": "娴忚鏂囨湰"
+        "navigationBarTitleText": "浏览文本"
       }
     }
   ],
@@ -130,19 +130,19 @@
         "pagePath": "pages/index",
         "iconPath": "static/images/tabbar/home.png",
         "selectedIconPath": "static/images/tabbar/home_.png",
-        "text": "棣栭〉"
+        "text": "首页"
       },
       {
         "pagePath": "pages/mine/index",
-        "iconPath": "static/images/tabbar/mine.png",
-        "selectedIconPath": "static/images/tabbar/mine_.png",
-        "text": "鎴戠殑"
+        "iconPath": "static/images/tabbar/mine_.png",
+        "selectedIconPath": "static/images/tabbar/mine.png",
+        "text": "我的"
       }
     ]
   },
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "鍝佹鍥句緥",
+    "navigationBarTitleText": "品检图例",
     "navigationBarBackgroundColor": "#FFFFFF"
   },
   "easycom": {

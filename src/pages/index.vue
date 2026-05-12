@@ -453,7 +453,8 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 <style scoped>
 .home-page {
   position: relative;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--window-bottom, 0px));
+  box-sizing: border-box;
   overflow-x: hidden;
   background: linear-gradient(180deg, #efffdf 0%, #f7fff0 280rpx, #fff 520rpx);
   color: #171a22;
@@ -579,7 +580,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 }
 
 .body-shell {
-  min-height: calc(100vh - 320rpx);
+  min-height: calc(100vh - var(--window-bottom, 0px) - 320rpx);
   margin-top: 16rpx;
   overflow: hidden;
   border-radius: 20rpx 20rpx 0 0;
@@ -801,7 +802,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
   display: flex;
   flex-wrap: wrap;
   gap: 16rpx;
-  padding: 12rpx 18rpx 160rpx;
+  padding: 12rpx 18rpx 32rpx;
 }
 
 .image-card {

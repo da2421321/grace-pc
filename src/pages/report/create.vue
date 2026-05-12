@@ -1,26 +1,52 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
-// 品类选择状态
 const selectedCategory = ref('包包')
 const selectedGrade = ref('环保材质')
-const selectedType = ref('')
+const selectedType = ref('短靴')
+const navBarHeight = ref(44)
+const navMenuTop = ref(0)
+const navMenuHeight = ref(44)
 
-// 品类选项
-const categories = ['包包', '鞋靴', '服饰']
-const grades = ['A级', '环保材质', '春夏']
-const types = ['短靴']
+const categoryOptions = ['包包', '鞋靴', '服饰']
+const gradeOptions = ['A级', '环保材质', '春夏']
+const typeOptions = ['短靴']
+const navBarStyle = computed(() => ({
+  height: `${navBarHeight.value}px`,
+}))
+const navRowStyle = computed(() => ({
+  top: `${navMenuTop.value}px`,
+  height: `${navMenuHeight.value}px`,
+  lineHeight: `${navMenuHeight.value}px`,
+}))
 
-function selectCategory(category: string) {
-  selectedCategory.value = category
-}
+onMounted(() => {
+  initNavBar()
+})
 
-function selectGrade(grade: string) {
-  selectedGrade.value = grade
-}
+function initNavBar() {
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    const statusBarHeight = systemInfo.statusBarHeight || 0
 
-function selectType(type: string) {
-  selectedType.value = type
+    // #ifdef MP-WEIXIN
+    const menuButton = uni.getMenuButtonBoundingClientRect()
+    const navGap = Math.max(menuButton.top - statusBarHeight, 0)
+    navMenuTop.value = menuButton.top
+    navMenuHeight.value = menuButton.height
+    navBarHeight.value = menuButton.bottom + navGap
+    return
+    // #endif
+
+    navMenuTop.value = statusBarHeight
+    navMenuHeight.value = 44
+    navBarHeight.value = statusBarHeight + 44
+  }
+  catch {
+    navMenuTop.value = 0
+    navMenuHeight.value = 44
+    navBarHeight.value = 44
+  }
 }
 
 function goBack() {
@@ -32,49 +58,56 @@ function cancel() {
 }
 
 function submit() {
-  if (!selectedCategory.value) {
-    uni.showToast({ title: '请选择品类', icon: 'none' })
-    return
-  }
-  if (!selectedGrade.value) {
-    uni.showToast({ title: '请选择等级', icon: 'none' })
-    return
-  }
-  if (!selectedType.value) {
-    uni.showToast({ title: '请选择类型', icon: 'none' })
-    return
-  }
+  const url = `/pages/report/upload?category=${encodeURIComponent(selectedCategory.value)}&grade=${encodeURIComponent(selectedGrade.value)}&type=${encodeURIComponent(selectedType.value)}`
 
-  // 跳转到上传页面
   uni.navigateTo({
-    url: `/pages/report/upload?category=${selectedCategory.value}&grade=${selectedGrade.value}&type=${selectedType.value}`,
+    url,
+    fail: (error) => {
+      console.error('跳转上传页失败', error)
+      uni.showToast({
+        title: '跳转失败，请重试',
+        icon: 'none',
+      })
+    },
   })
+}
+
+function selectCategory(value: string) {
+  selectedCategory.value = value
+}
+
+function selectGrade(value: string) {
+  selectedGrade.value = value
+}
+
+function selectType(value: string) {
+  selectedType.value = value
 }
 </script>
 
 <template>
   <view class="report-create-page">
-    <!-- 顶部导航栏 -->
-    <view class="nav-bar">
-      <view class="nav-back" @click="goBack">
-        <text class="back-icon">‹</text>
+    <view class="nav-bar" :style="navBarStyle">
+      <view class="nav-row" :style="navRowStyle">
+        <view class="nav-back" @click="goBack">
+          <view class="back-icon" />
+        </view>
+        <text class="nav-title">图片上报</text>
       </view>
-      <text class="nav-title">图片上报</text>
     </view>
 
-    <!-- 选择区域 -->
-    <view class="selection-container">
-      <!-- 第一级选择 -->
-      <view class="selection-group">
-        <view class="selection-header">
-          <text class="selection-title">请选择品类</text>
-          <view class="selection-underline" />
+    <view class="content">
+      <view class="section">
+        <view class="section-title-wrap">
+          <text class="section-title">请选择品类</text>
+          <view class="section-underline" />
         </view>
         <view class="tag-list">
           <button
-            v-for="item in categories"
+            v-for="item in categoryOptions"
             :key="item"
-            :class="['tag-item', { active: selectedCategory === item }]"
+            class="tag-item"
+            :class="{ active: selectedCategory === item }"
             @click="selectCategory(item)"
           >
             {{ item }}
@@ -82,17 +115,17 @@ function submit() {
         </view>
       </view>
 
-      <!-- 第二级选择 -->
-      <view class="selection-group">
-        <view class="selection-header">
-          <text class="selection-title">请选择品类</text>
-          <view class="selection-underline active" />
+      <view class="section">
+        <view class="section-title-wrap">
+          <text class="section-title">请选择品类</text>
+          <view class="section-underline" />
         </view>
         <view class="tag-list">
           <button
-            v-for="item in grades"
+            v-for="item in gradeOptions"
             :key="item"
-            :class="['tag-item', { active: selectedGrade === item, wide: item === '环保材质' }]"
+            class="tag-item"
+            :class="{ active: selectedGrade === item }"
             @click="selectGrade(item)"
           >
             {{ item }}
@@ -100,17 +133,17 @@ function submit() {
         </view>
       </view>
 
-      <!-- 第三级选择 -->
-      <view class="selection-group">
-        <view class="selection-header">
-          <text class="selection-title">请选择品类</text>
-          <view class="selection-underline active" />
+      <view class="section">
+        <view class="section-title-wrap">
+          <text class="section-title">请选择品类</text>
+          <view class="section-underline" />
         </view>
         <view class="tag-list">
           <button
-            v-for="item in types"
+            v-for="item in typeOptions"
             :key="item"
-            :class="['tag-item', { active: selectedType === item }]"
+            class="tag-item"
+            :class="{ active: selectedType === item }"
             @click="selectType(item)"
           >
             {{ item }}
@@ -119,7 +152,6 @@ function submit() {
       </view>
     </view>
 
-    <!-- 底部按钮 -->
     <view class="bottom-actions">
       <view class="action-divider" />
       <view class="action-buttons">
@@ -138,78 +170,86 @@ function submit() {
 .report-create-page {
   min-height: 100vh;
   background: #fff;
-  padding-bottom: 130rpx;
+  padding-bottom: calc(134rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 
-/* 顶部导航栏 */
 .nav-bar {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 176rpx;
-  padding-top: 88rpx;
+  width: 100%;
   background: #fff;
 }
 
-.nav-back {
+.nav-row {
   position: absolute;
-  left: 50rpx;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 36rpx;
-  height: 68rpx;
+  left: 0;
+  right: 220rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+}
+
+.nav-back {
+  flex: 0 0 68rpx;
+  margin-left: 12rpx;
+  width: 64rpx;
+  height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .back-icon {
-  color: #1a2f4d;
-  font-size: 68rpx;
-  line-height: 1;
-  font-weight: 300;
+  width: 22rpx;
+  height: 22rpx;
+  border-left: 4rpx solid #1f2328;
+  border-bottom: 4rpx solid #1f2328;
+  transform: rotate(45deg);
 }
 
 .nav-title {
-  color: #1a2f4d;
-  font-size: 36rpx;
+  color: #1f2328;
+  font-size: 34rpx;
+  line-height: 1;
   font-weight: 400;
-  line-height: 50rpx;
 }
 
-/* 选择区域 */
-.selection-container {
-  padding: 56rpx 50rpx 0;
+.content {
+  padding: 56rpx 32rpx 0;
 }
 
-.selection-group {
-  margin-bottom: 28rpx;
+.section {
+  margin-bottom: 42rpx;
 }
 
-.selection-header {
+.section-title-wrap {
   position: relative;
+  display: inline-flex;
+  align-items: flex-start;
   margin-bottom: 24rpx;
 }
 
-.selection-title {
-  color: #25262b;
-  font-size: 30rpx;
-  font-weight: 800;
+.section-title {
+  color: #1f2328;
+  font-size: 32rpx;
   line-height: 40rpx;
+  font-weight: 800;
+  position: relative;
+  z-index: 1;
 }
 
-.selection-underline {
+.section-underline {
   position: absolute;
-  left: 34rpx;
-  bottom: -14rpx;
-  width: 60rpx;
-  height: 10rpx;
-  background: transparent;
-}
-
-.selection-underline.active {
-  background: #92e616;
+  left: 50%;
+  bottom: -4rpx;
+  width: 64rpx;
+  height: 12rpx;
+  border-radius: 12rpx;
+  background: #88e100;
+  transform: translateX(-50%);
+  overflow: hidden;
+  z-index: 0;
 }
 
 .tag-list {
@@ -219,33 +259,29 @@ function submit() {
 }
 
 .tag-item {
+  min-width: 102rpx;
   height: 70rpx;
-  padding: 0 30rpx;
-  border-radius: 30rpx;
-  background: #f7f7f7;
-  color: #777978;
+  padding: 0 28rpx;
+  border-radius: 22rpx;
+  background: #f4f4f4;
+  color: #7b7b7b;
   font-size: 26rpx;
-  font-weight: 400;
   line-height: 70rpx;
   text-align: center;
-  border: none;
+  border: 0;
   margin: 0;
 }
 
-.tag-item.wide {
-  padding: 0 40rpx;
-}
-
 .tag-item.active {
-  background: #92e616;
-  color: #25262b;
+  background: #88e100;
+  color: #1f2328;
 }
 
-.tag-item::after {
-  border: none;
+.tag-item::after,
+.action-btn::after {
+  border: 0;
 }
 
-/* 底部按钮 */
 .bottom-actions {
   position: fixed;
   left: 0;
@@ -257,39 +293,34 @@ function submit() {
 
 .action-divider {
   height: 2rpx;
-  background: #ebeaef;
+  background: #f0f0f0;
 }
 
 .action-buttons {
   display: flex;
-  gap: 30rpx;
-  padding: 15rpx 50rpx calc(15rpx + env(safe-area-inset-bottom));
+  gap: 24rpx;
+  padding: 18rpx 26rpx calc(18rpx + env(safe-area-inset-bottom));
 }
 
 .action-btn {
   height: 100rpx;
   border-radius: 30rpx;
   font-size: 30rpx;
-  font-weight: 400;
   line-height: 100rpx;
   text-align: center;
-  border: none;
+  border: 0;
   margin: 0;
 }
 
 .cancel-btn {
-  width: 260rpx;
-  background: #f7f7f7;
-  color: #25262b;
+  width: 280rpx;
+  background: #f5f5f5;
+  color: #26272c;
 }
 
 .submit-btn {
   flex: 1;
-  background: #25262b;
+  background: #26272c;
   color: #fff;
-}
-
-.action-btn::after {
-  border: none;
 }
 </style>

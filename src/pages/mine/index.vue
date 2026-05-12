@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { InternalUser } from '@/data/session'
 import { onShow } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import apis from '@/api'
 import {
   ADMIN_CONTACT,
@@ -20,13 +20,6 @@ const pwdOld = ref('')
 const pwdNew = ref('')
 const pwdAgain = ref('')
 const passwordSubmitting = ref(false)
-
-const initials = computed(() => {
-  const name = user.value.name.trim()
-  if (!name)
-    return '?'
-  return name.length <= 2 ? name : name.slice(-2)
-})
 
 onShow(() => {
   loadUserInfo()
@@ -145,20 +138,30 @@ function logout() {
 <template>
   <view class="mine-page">
     <!-- 顶部背景 -->
-    <view class="bg-header" />
+    <image
+      class="bg-header"
+      src="/static/images/figma/mine/mine-bg.svg"
+      mode="scaleToFill"
+    />
 
     <!-- 头像组 -->
     <view class="profile-section" @click="goUserInfo">
       <view class="avatar-wrapper">
-        <view class="avatar">
-          {{ initials }}
-        </view>
+        <image
+          class="avatar"
+          src="/static/images/figma/mine/profile-avatar.png"
+          mode="aspectFill"
+        />
       </view>
       <view class="profile-info">
         <text class="profile-name">{{ user.name }}</text>
         <text class="profile-dept">{{ user.dept }}</text>
       </view>
-      <view class="arrow-icon">›</view>
+      <image
+        class="arrow-icon"
+        src="/static/images/figma/mine/profile-arrow.svg"
+        mode="aspectFit"
+      />
     </view>
 
     <!-- 功能卡片 -->
@@ -167,21 +170,45 @@ function logout() {
       
       <view class="service-list">
         <button class="service-item" @click="goReports">
-          <view class="service-icon">📋</view>
+          <image
+            class="service-icon"
+            src="/static/images/figma/mine/service-report.svg"
+            mode="aspectFit"
+          />
           <text class="service-text">我的上报纪录</text>
-          <view class="service-arrow">›</view>
+          <image
+            class="service-arrow"
+            src="/static/images/figma/mine/profile-arrow.svg"
+            mode="aspectFit"
+          />
         </button>
 
         <button class="service-item" @click="openSheet('pwd')">
-          <view class="service-icon">🔒</view>
+          <image
+            class="service-icon"
+            src="/static/images/figma/mine/service-password.svg"
+            mode="aspectFit"
+          />
           <text class="service-text">修改密码</text>
-          <view class="service-arrow">›</view>
+          <image
+            class="service-arrow"
+            src="/static/images/figma/mine/profile-arrow.svg"
+            mode="aspectFit"
+          />
         </button>
 
         <button class="service-item no-border" @click="openSheet('admin')">
-          <view class="service-icon">👤</view>
+          <image
+            class="service-icon"
+            src="/static/images/figma/mine/service-admin.svg"
+            mode="aspectFit"
+          />
           <text class="service-text">联系管理员</text>
-          <view class="service-arrow">›</view>
+          <image
+            class="service-arrow"
+            src="/static/images/figma/mine/profile-arrow.svg"
+            mode="aspectFit"
+          />
         </button>
       </view>
     </view>
@@ -314,8 +341,11 @@ function logout() {
 
 <style scoped>
 .mine-page {
-  min-height: 100vh;
-  padding-bottom: 160rpx;
+  position: relative;
+  min-height: calc(100vh - var(--window-bottom, 0px));
+  box-sizing: border-box;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  overflow-x: hidden;
   background: #f7f7f7;
   color: #25262b;
 }
@@ -327,7 +357,7 @@ function logout() {
   left: 0;
   right: 0;
   height: 421rpx;
-  background: linear-gradient(180deg, #c7f770 0%, #92e616 100%);
+  background: linear-gradient(183deg, rgba(199, 247, 112, 0.5) 0%, #c7f770 100%);
   z-index: 0;
 }
 
@@ -345,22 +375,13 @@ function logout() {
 
 .avatar-wrapper {
   flex-shrink: 0;
-  margin-right: 25rpx;
+  margin-right: 24rpx;
 }
 
 .avatar {
-  display: flex;
   width: 118rpx;
   height: 118rpx;
-  align-items: center;
-  justify-content: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
-  border: 3rpx solid rgba(255, 255, 255, 0.8);
-  color: #25262b;
-  font-size: 34rpx;
-  font-weight: 800;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
 }
 
 .profile-info {
@@ -373,7 +394,7 @@ function logout() {
   color: #000;
   font-size: 34rpx;
   font-weight: 800;
-  line-height: 50rpx;
+  line-height: 42rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -381,10 +402,10 @@ function logout() {
 
 .profile-dept {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 6rpx;
   color: #777978;
   font-size: 24rpx;
-  line-height: 50rpx;
+  line-height: 34rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -392,17 +413,18 @@ function logout() {
 
 .arrow-icon {
   flex-shrink: 0;
+  width: 30rpx;
+  height: 30rpx;
   margin-left: 20rpx;
-  color: #25262b;
-  font-size: 48rpx;
-  line-height: 1;
 }
 
 /* 功能卡片 */
 .service-card {
   position: relative;
   z-index: 1;
-  margin: 42rpx 20rpx 0;
+  box-sizing: border-box;
+  height: 433rpx;
+  margin: 44rpx 20rpx 0;
   padding: 41rpx 0 0;
   background: #fff;
   border-radius: 30rpx;
@@ -410,7 +432,7 @@ function logout() {
 
 .service-title {
   display: block;
-  padding: 0 50rpx;
+  padding: 0 54rpx;
   color: #25262b;
   font-size: 28rpx;
   font-weight: 400;
@@ -418,16 +440,17 @@ function logout() {
 }
 
 .service-list {
-  margin-top: 21rpx;
-  padding: 0 50rpx;
+  margin-top: 28rpx;
+  padding: 0 30rpx;
 }
 
 .service-item {
   display: flex;
   width: 100%;
+  height: 101rpx;
   align-items: center;
   margin: 0;
-  padding: 31rpx 0;
+  padding: 0 0 0 26rpx;
   border-bottom: 2rpx solid #ebeaef;
   background: transparent;
   text-align: left;
@@ -442,15 +465,12 @@ function logout() {
   flex-shrink: 0;
   width: 40rpx;
   height: 40rpx;
-  margin-right: 26rpx;
-  font-size: 32rpx;
-  line-height: 40rpx;
-  text-align: center;
+  margin-right: 14rpx;
 }
 
 .service-text {
   flex: 1;
-  color: #25262b;
+  color: #222329;
   font-size: 26rpx;
   font-weight: 500;
   line-height: 34rpx;
@@ -458,19 +478,18 @@ function logout() {
 
 .service-arrow {
   flex-shrink: 0;
-  margin-left: 20rpx;
-  color: #25262b;
-  font-size: 40rpx;
-  line-height: 1;
+  width: 30rpx;
+  height: 30rpx;
+  margin-left: 18rpx;
 }
 
 /* 退出登录按钮 */
 .logout-button {
   position: relative;
   z-index: 1;
-  width: 648rpx;
+  width: 400rpx;
   height: 70rpx;
-  margin: 239rpx auto 0;
+  margin: 101rpx auto 0;
   border-radius: 100rpx;
   background: #25262b;
   color: #fff;

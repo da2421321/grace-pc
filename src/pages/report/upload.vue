@@ -1,10 +1,25 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app'
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const categoryInfo = ref('')
 const imageList = ref<string[]>([])
 const description = ref('')
+const navBarHeight = ref(44)
+const navMenuTop = ref(0)
+const navMenuHeight = ref(44)
+const navBarStyle = computed(() => ({
+  height: `${navBarHeight.value}px`,
+}))
+const navRowStyle = computed(() => ({
+  top: `${navMenuTop.value}px`,
+  height: `${navMenuHeight.value}px`,
+  lineHeight: `${navMenuHeight.value}px`,
+}))
+
+onMounted(() => {
+  initNavBar()
+})
 
 onLoad((options) => {
   if (!options)
@@ -12,6 +27,31 @@ onLoad((options) => {
   const { category, grade, type } = options
   categoryInfo.value = `${category || ''}/${grade || ''}/${type || ''}`
 })
+
+function initNavBar() {
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    const statusBarHeight = systemInfo.statusBarHeight || 0
+
+    // #ifdef MP-WEIXIN
+    const menuButton = uni.getMenuButtonBoundingClientRect()
+    const navGap = Math.max(menuButton.top - statusBarHeight, 0)
+    navMenuTop.value = menuButton.top
+    navMenuHeight.value = menuButton.height
+    navBarHeight.value = menuButton.bottom + navGap
+    return
+    // #endif
+
+    navMenuTop.value = statusBarHeight
+    navMenuHeight.value = 44
+    navBarHeight.value = statusBarHeight + 44
+  }
+  catch {
+    navMenuTop.value = 0
+    navMenuHeight.value = 44
+    navBarHeight.value = 44
+  }
+}
 
 function goBack() {
   uni.navigateBack()
@@ -60,11 +100,13 @@ function submit() {
 
 <template>
   <view class="report-upload-page">
-    <view class="nav-bar">
-      <view class="nav-back" @click="goBack">
-        <text class="back-icon">‹</text>
+    <view class="nav-bar" :style="navBarStyle">
+      <view class="nav-row" :style="navRowStyle">
+        <view class="nav-back" @click="goBack">
+          <view class="back-icon" />
+        </view>
+        <text class="nav-title">图片上报</text>
       </view>
-      <text class="nav-title">图片上报</text>
     </view>
 
     <view class="category-info">
@@ -125,7 +167,7 @@ function submit() {
           v-model="description"
           class="description-input"
           placeholder="输入并描述你的问题"
-          maxlength="500"
+          :maxlength="500"
           :auto-height="false"
         />
       </view>
@@ -154,38 +196,43 @@ function submit() {
 
 .nav-bar {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 176rpx;
-  padding-top: 88rpx;
+  width: 100%;
   background: #fff;
 }
 
-.nav-back {
+.nav-row {
   position: absolute;
-  left: 50rpx;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 36rpx;
-  height: 68rpx;
+  left: 0;
+  right: 220rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+}
+
+.nav-back {
+  flex: 0 0 68rpx;
+  margin-left: 12rpx;
+  width: 64rpx;
+  height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .back-icon {
-  color: #1a2f4d;
-  font-size: 68rpx;
-  line-height: 1;
-  font-weight: 300;
+  width: 22rpx;
+  height: 22rpx;
+  border-left: 4rpx solid #1f2328;
+  border-bottom: 4rpx solid #1f2328;
+  transform: rotate(45deg);
 }
 
 .nav-title {
-  color: #1a2f4d;
-  font-size: 36rpx;
+  color: #1f2328;
+  font-size: 34rpx;
   font-weight: 400;
-  line-height: 50rpx;
+  line-height: 1;
 }
 
 .category-info {
@@ -235,23 +282,30 @@ function submit() {
 
 .section-header {
   position: relative;
+  display: inline-flex;
+  align-items: flex-start;
   margin-bottom: 30rpx;
 }
 
 .section-title {
-  color: #25262b;
-  font-size: 30rpx;
+  position: relative;
+  z-index: 1;
+  color: #1f2328;
+  font-size: 32rpx;
   font-weight: 800;
   line-height: 40rpx;
 }
 
 .section-underline {
   position: absolute;
-  left: 0;
-  bottom: -14rpx;
+  left: 50%;
+  bottom: -2rpx;
   width: 112rpx;
   height: 10rpx;
-  background: #92e616;
+  border-radius: 999rpx;
+  background: #88e100;
+  transform: translateX(-50%);
+  z-index: 0;
 }
 
 .upload-area {
