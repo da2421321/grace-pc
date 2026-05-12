@@ -17,10 +17,8 @@ const navBarStyle = computed(() => ({
   height: `${navBarHeight.value}px`,
 }))
 
-const navRowStyle = computed(() => ({
+const navBackStyle = computed(() => ({
   top: `${navMenuTop.value}px`,
-  height: `${navMenuHeight.value}px`,
-  lineHeight: `${navMenuHeight.value}px`,
 }))
 
 onMounted(() => {
@@ -82,16 +80,18 @@ function statusClass(status: ReportProcessStatus) {
         src="/static/images/figma/detail/report-detail-bg.svg"
         mode="scaleToFill"
       />
-      <view class="custom-nav" :style="navBarStyle">
-        <view class="nav-row" :style="navRowStyle">
-          <button
-            class="nav-back"
-            hover-class="none"
-            @click="goBack"
-          >
-            <view class="back-icon" />
-          </button>
-        </view>
+      <view
+        class="report-top"
+        :style="navBarStyle"
+      >
+        <button
+          class="nav-back"
+          :style="navBackStyle"
+          hover-class="none"
+          @click="goBack"
+        >
+          <view class="back-icon" />
+        </button>
       </view>
 
       <template v-if="report">
@@ -104,7 +104,7 @@ function statusClass(status: ReportProcessStatus) {
           <image
             class="report-product-image"
             :src="getReportImage(report)"
-            mode="aspectFit"
+            mode="aspectFill"
           />
         </view>
 
@@ -202,32 +202,25 @@ function statusClass(status: ReportProcessStatus) {
   height: 900rpx;
 }
 
-.custom-nav {
+.report-top {
   position: relative;
   z-index: 3;
   width: 100%;
-}
-
-.nav-row {
-  position: absolute;
-  left: 0;
-  right: 220rpx;
-  display: flex;
-  align-items: center;
   box-sizing: border-box;
 }
 
 .nav-back {
+  position: absolute;
+  left: 28rpx;
   display: flex;
   width: 60rpx;
   height: 60rpx;
   align-items: center;
   justify-content: center;
-  margin: 0 0 0 28rpx;
   padding: 0;
   border: 0;
-  border-radius: 18rpx;
-  background: rgba(37, 38, 43, 0.48);
+  border-radius: 20rpx;
+  background: rgba(37, 38, 43, 0.5);
   line-height: 1;
 }
 
@@ -293,7 +286,7 @@ function statusClass(status: ReportProcessStatus) {
 .report-sheet {
   position: relative;
   z-index: 2;
-  min-height: calc(100vh - 865rpx);
+  min-height: 760rpx;
   margin-top: -1rpx;
   box-sizing: border-box;
   padding: 25rpx 50rpx calc(48rpx + env(safe-area-inset-bottom));
@@ -305,32 +298,34 @@ function statusClass(status: ReportProcessStatus) {
   display: grid;
   grid-template-columns: 152rpx minmax(0, 1fr);
   align-items: center;
-  min-height: 131rpx;
+  min-height: 130rpx;
   border-bottom: 1rpx solid rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
 }
 
 .report-submit-row {
-  min-height: 167rpx;
+  min-height: 130rpx;
   align-items: start;
   padding-top: 45rpx;
 }
 
 .report-desc-row {
   align-items: start;
-  padding-top: 36rpx;
+  padding-top: 45rpx;
 }
 
 .field-label-wrap {
   position: relative;
   display: inline-block;
+  justify-self: start;
   height: 40rpx;
+  white-space: nowrap;
 }
 
 .field-label-mark {
   position: absolute;
-  left: 1rpx;
-  right: -2rpx;
+  left: 0;
+  right: 0;
   bottom: 5rpx;
   height: 10rpx;
   background: #92e616;

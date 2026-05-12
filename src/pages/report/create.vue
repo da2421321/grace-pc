@@ -245,7 +245,6 @@ function selectType(value: string) {
   bottom: -4rpx;
   width: 64rpx;
   height: 12rpx;
-  border-radius: 12rpx;
   background: #88e100;
   transform: translateX(-50%);
   overflow: hidden;

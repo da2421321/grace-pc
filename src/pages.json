@@ -51,7 +51,15 @@
     {
       "path": "pages/report/detail",
       "style": {
-        "navigationBarTitleText": "上报详情"
+        "navigationBarTitleText": "上报详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/qc/detail/index",
+      "style": {
+        "navigationBarTitleText": "品类详情",
+        "navigationStyle": "custom"
       }
     },
     {

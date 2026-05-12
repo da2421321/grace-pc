@@ -174,7 +174,9 @@ function selectContentChip(option: ContentChipOption) {
 }
 
 function openDetail(item: QualityImageItem) {
-  detailItem.value = item
+  uni.navigateTo({
+    url: `/pages/qc/detail/index?id=${encodeURIComponent(item.id)}`,
+  })
 }
 
 function closeDetail() {
