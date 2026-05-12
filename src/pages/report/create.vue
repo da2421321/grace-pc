@@ -1,16 +1,63 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import {
+  ALL_VALUE,
+  buildReportCategoryPath,
+  fetchQualityImages,
+  getCategoryLevelOptions,
+  getItemsAfterTop,
+  getTopCategoryOptions,
+  getVarietyOptions,
+  type FilterOption,
+  type QualityImageItem,
+} from '@/data/qc'
 
-const selectedCategory = ref('包包')
-const selectedGrade = ref('环保材质')
-const selectedType = ref('短靴')
+const items = ref<QualityImageItem[]>([])
+const selectedTop = ref(ALL_VALUE)
+const selectedCategoryPath = ref<string[]>([])
+const selectedVariety = ref(ALL_VALUE)
+const loading = ref(true)
+const loadError = ref('')
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
 
-const categoryOptions = ['包包', '鞋靴', '服饰']
-const gradeOptions = ['A级', '环保材质', '春夏']
-const typeOptions = ['短靴']
+const topCategoryOptions = computed(() => getTopCategoryOptions(items.value).filter(option => option.value !== ALL_VALUE))
+const itemsAfterTop = computed(() => getItemsAfterTop(items.value, selectedTop.value))
+const categoryLevelOptions = computed(() => getCategoryLevelOptions(itemsAfterTop.value, selectedCategoryPath.value))
+const categoryLevelOptionsConcrete = computed(() => {
+  return categoryLevelOptions.value.map(level => level.filter(option => option.value !== ALL_VALUE))
+})
+const subCategoriesComplete = computed(() => {
+  if (categoryLevelOptionsConcrete.value.length === 0)
+    return selectedTop.value !== ALL_VALUE
+  return categoryLevelOptionsConcrete.value.every((_, index) => {
+    const value = selectedCategoryPath.value[index]
+    return Boolean(value && value !== ALL_VALUE)
+  })
+})
+const varietyOptions = computed(() => {
+  if (!subCategoriesComplete.value)
+    return []
+  return getVarietyOptions(itemsAfterTop.value, selectedCategoryPath.value).filter(option => option.value !== ALL_VALUE)
+})
+const selectedCategoryLabel = computed(() => buildReportCategoryPath(selectedTop.value, selectedCategoryPath.value))
+const selectedVarietyLabel = computed(() => {
+  if (selectedVariety.value === ALL_VALUE)
+    return ''
+  return varietyOptions.value.find(option => option.value === selectedVariety.value)?.label ?? selectedVariety.value
+})
+const selectedItem = computed(() => {
+  if (selectedTop.value === ALL_VALUE || selectedVariety.value === ALL_VALUE)
+    return undefined
+  return itemsAfterTop.value.find((item) => {
+    if (item.varietyCode !== selectedVariety.value)
+      return false
+    return selectedCategoryPath.value.every((value, index) => {
+      return !value || value === ALL_VALUE || item.categoryPath[index + 1] === value
+    })
+  })
+})
 const navBarStyle = computed(() => ({
   height: `${navBarHeight.value}px`,
 }))
@@ -22,7 +69,24 @@ const navRowStyle = computed(() => ({
 
 onMounted(() => {
   initNavBar()
+  loadOptions()
 })
+
+async function loadOptions() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const response = await fetchQualityImages()
+    items.value = response.items
+    selectDefaultOptions()
+  }
+  catch (error) {
+    loadError.value = error instanceof Error ? error.message : '加载品类失败，请稍后重试'
+  }
+  finally {
+    loading.value = false
+  }
+}
 
 function initNavBar() {
   try {
@@ -58,7 +122,19 @@ function cancel() {
 }
 
 function submit() {
-  const url = `/pages/report/upload?category=${encodeURIComponent(selectedCategory.value)}&grade=${encodeURIComponent(selectedGrade.value)}&type=${encodeURIComponent(selectedType.value)}`
+  const item = selectedItem.value
+  if (!item) {
+    uni.showToast({ title: '请先选择品类和品种', icon: 'none' })
+    return
+  }
+
+  const query = [
+    ['imageId', item.id],
+    ['category', selectedCategoryLabel.value],
+    ['variety', selectedVarietyLabel.value],
+    ['imageUrl', item.imageUrl],
+  ].map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&')
+  const url = `/pages/report/upload?${query}`
 
   uni.navigateTo({
     url,
@@ -72,16 +148,63 @@ function submit() {
   })
 }
 
-function selectCategory(value: string) {
-  selectedCategory.value = value
+function selectDefaultOptions() {
+  const firstTop = topCategoryOptions.value[0]
+  if (!firstTop)
+    return
+  selectedTop.value = firstTop.value
+  fillFirstSubCategories(0)
+  selectFirstVariety()
 }
 
-function selectGrade(value: string) {
-  selectedGrade.value = value
+function selectTopOption(value: string) {
+  selectedTop.value = value
+  selectedCategoryPath.value = []
+  selectedVariety.value = ALL_VALUE
+  fillFirstSubCategories(0)
+  selectFirstVariety()
 }
 
-function selectType(value: string) {
-  selectedType.value = value
+function selectCategoryLevel(levelIndex: number, value: string) {
+  const next = selectedCategoryPath.value.slice(0, levelIndex)
+  next[levelIndex] = value
+  selectedCategoryPath.value = next
+  fillFirstSubCategories(levelIndex + 1)
+  selectFirstVariety()
+}
+
+function selectVarietyOption(value: string) {
+  selectedVariety.value = value
+}
+
+function fillFirstSubCategories(startIndex: number) {
+  const path = selectedCategoryPath.value.slice(0, startIndex)
+  for (let guard = 0; guard < 8; guard++) {
+    const levels = getCategoryLevelOptions(getItemsAfterTop(items.value, selectedTop.value), path)
+    const options = levels[path.length]?.filter(option => option.value !== ALL_VALUE) ?? []
+    if (options.length === 0)
+      break
+    path.push(options[0].value)
+  }
+  selectedCategoryPath.value = path
+}
+
+function selectFirstVariety() {
+  const first = getVarietyOptions(getItemsAfterTop(items.value, selectedTop.value), selectedCategoryPath.value)
+    .find(option => option.value !== ALL_VALUE)
+  selectedVariety.value = first?.value ?? ALL_VALUE
+}
+
+function retryLoad() {
+  loadOptions()
+}
+
+function getSectionTitle(levelIndex: number) {
+  return levelIndex === 0 ? '请选择二级品类' : `请选择第 ${levelIndex + 2} 级品类`
+}
+
+function formatVarietyLabel(option: FilterOption) {
+  return option.label.replace(/\s*\([^)]*\)\s*$/, '')
 }
 </script>
 
@@ -97,59 +220,79 @@ function selectType(value: string) {
     </view>
 
     <view class="content">
-      <view class="section">
-        <view class="section-title-wrap">
-          <text class="section-title">请选择品类</text>
-          <view class="section-underline" />
-        </view>
-        <view class="tag-list">
-          <button
-            v-for="item in categoryOptions"
-            :key="item"
-            class="tag-item"
-            :class="{ active: selectedCategory === item }"
-            @click="selectCategory(item)"
-          >
-            {{ item }}
-          </button>
-        </view>
+      <view v-if="loading" class="state-text">
+        正在加载品类...
       </view>
 
-      <view class="section">
-        <view class="section-title-wrap">
-          <text class="section-title">请选择品类</text>
-          <view class="section-underline" />
-        </view>
-        <view class="tag-list">
-          <button
-            v-for="item in gradeOptions"
-            :key="item"
-            class="tag-item"
-            :class="{ active: selectedGrade === item }"
-            @click="selectGrade(item)"
-          >
-            {{ item }}
-          </button>
-        </view>
+      <view v-else-if="loadError" class="state-text">
+        <text>{{ loadError }}</text>
+        <button class="retry-btn" @click="retryLoad">
+          重试
+        </button>
       </view>
 
-      <view class="section">
-        <view class="section-title-wrap">
-          <text class="section-title">请选择品类</text>
-          <view class="section-underline" />
+      <template v-else>
+        <view class="section">
+          <view class="section-title-wrap">
+            <text class="section-title">请选择一级品类</text>
+            <view class="section-underline" />
+          </view>
+          <view class="tag-list">
+            <button
+              v-for="item in topCategoryOptions"
+              :key="item.value"
+              class="tag-item"
+              :class="{ active: selectedTop === item.value }"
+              @click="selectTopOption(item.value)"
+            >
+              {{ item.label }}
+            </button>
+          </view>
         </view>
-        <view class="tag-list">
-          <button
-            v-for="item in typeOptions"
-            :key="item"
-            class="tag-item"
-            :class="{ active: selectedType === item }"
-            @click="selectType(item)"
-          >
-            {{ item }}
-          </button>
+
+        <view
+          v-for="(options, levelIndex) in categoryLevelOptionsConcrete"
+          :key="levelIndex"
+          class="section"
+        >
+          <view class="section-title-wrap">
+            <text class="section-title">{{ getSectionTitle(levelIndex) }}</text>
+            <view class="section-underline" />
+          </view>
+          <view class="tag-list">
+            <button
+              v-for="item in options"
+              :key="item.value"
+              class="tag-item"
+              :class="{ active: selectedCategoryPath[levelIndex] === item.value }"
+              @click="selectCategoryLevel(levelIndex, item.value)"
+            >
+              {{ item.label }}
+            </button>
+          </view>
         </view>
-      </view>
+
+        <view class="section">
+          <view class="section-title-wrap">
+            <text class="section-title">请选择品种</text>
+            <view class="section-underline" />
+          </view>
+          <view v-if="varietyOptions.length === 0" class="empty-text">
+            暂无可选品种
+          </view>
+          <view v-else class="tag-list">
+            <button
+              v-for="item in varietyOptions"
+              :key="item.value"
+              class="tag-item"
+              :class="{ active: selectedVariety === item.value }"
+              @click="selectVarietyOption(item.value)"
+            >
+              {{ formatVarietyLabel(item) }}
+            </button>
+          </view>
+        </view>
+      </template>
     </view>
 
     <view class="bottom-actions">
@@ -223,6 +366,33 @@ function selectType(value: string) {
   margin-bottom: 42rpx;
 }
 
+.state-text,
+.empty-text {
+  color: #777978;
+  font-size: 28rpx;
+  line-height: 44rpx;
+}
+
+.state-text {
+  display: flex;
+  min-height: 360rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24rpx;
+}
+
+.retry-btn {
+  width: 180rpx;
+  height: 70rpx;
+  border-radius: 22rpx;
+  background: #88e100;
+  color: #1f2328;
+  font-size: 28rpx;
+  line-height: 70rpx;
+  border: 0;
+}
+
 .section-title-wrap {
   position: relative;
   display: inline-flex;
@@ -277,6 +447,7 @@ function selectType(value: string) {
 }
 
 .tag-item::after,
+.retry-btn::after,
 .action-btn::after {
   border: 0;
 }

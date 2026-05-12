@@ -4,7 +4,6 @@ const LOGIN_PAGE = '/pages/login'
 const WHITE_LIST = [
   '/pages/login',
   '/pages/register',
-  '/pages/common/webview/index',
 ]
 
 function isWhiteListed(url: string) {

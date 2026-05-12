@@ -1,5 +1,6 @@
 ﻿import apis from '@/api'
 import { getCurrentUser } from './session'
+import { fetchQualityImages, getFullCategoryPath, type QualityImageItem } from './qc'
 
 export type ReportProcessStatus = 'pending' | 'done'
 
@@ -7,6 +8,7 @@ export interface MyReportRecord {
   id: string
   submitter: string
   submittedAt: string
+  imageId?: string
   category: string
   variety: string
   imageCaption: string
@@ -16,10 +18,11 @@ export interface MyReportRecord {
 }
 
 export interface CreateMyReportInput {
-  category: string
-  variety: string
+  imageId?: string | number
+  category?: string
+  variety?: string
   description: string
-  imagePath: string
+  imagePath?: string
 }
 
 const STORAGE_USER_REPORTS = 'miniapp_my_reports_user'
@@ -96,8 +99,10 @@ export async function fetchMyReports(): Promise<MyReportRecord[]> {
   try {
     const response = await apis.pcQc.myReports()
     const payload = unwrapData<unknown>(response)
-    if (Array.isArray(payload))
-      return payload.map(normalizeReport)
+    if (Array.isArray(payload)) {
+      const imageMap = await loadQualityImageMap()
+      return payload.map(item => normalizeReport(item as Record<string, unknown>, imageMap))
+    }
   }
   catch {
     // 本地预览或后端未部署时使用本地记录
@@ -109,8 +114,10 @@ export async function fetchMyReportById(id: string): Promise<MyReportRecord | un
   try {
     const response = await apis.pcQc.reportDetail(id)
     const payload = unwrapData<unknown>(response)
-    if (payload && typeof payload === 'object')
-      return normalizeReport(payload as Record<string, unknown>)
+    if (payload && typeof payload === 'object') {
+      const imageMap = await loadQualityImageMap()
+      return normalizeReport(payload as Record<string, unknown>, imageMap)
+    }
   }
   catch {
     // 本地预览或后端未部署时使用本地记录
@@ -128,8 +135,9 @@ export function addMyReport(input: CreateMyReportInput): MyReportRecord {
     id: `rpt-u-${Date.now()}`,
     submitter: `小程序用户-${user.name}`,
     submittedAt: formatSubmittedAt(new Date()),
-    category: input.category.trim(),
-    variety: input.variety.trim(),
+    imageId: input.imageId ? String(input.imageId) : undefined,
+    category: input.category?.trim() || '未选择品类',
+    variety: input.variety?.trim() || '未选择品种',
     imageCaption: '上报附图',
     imagePath: input.imagePath,
     description: input.description.trim(),
@@ -141,16 +149,17 @@ export function addMyReport(input: CreateMyReportInput): MyReportRecord {
 
 export async function createMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
   try {
-    const response = await apis.pcQc.createReport({
-      category: input.category,
-      variety: input.variety,
-      imageUrl: input.imagePath,
-      imageCaption: '上报附图',
-      description: input.description,
-    })
-    const payload = unwrapData<unknown>(response)
-    if (payload && typeof payload === 'object')
-      return normalizeReport(payload as Record<string, unknown>)
+    if (input.imageId) {
+      const response = await apis.pcQc.createReport({
+        imageId: input.imageId,
+        remark: input.description.trim(),
+      })
+      const payload = unwrapData<unknown>(response)
+      if (payload && typeof payload === 'object') {
+        const imageMap = await loadQualityImageMap()
+        return normalizeReport(payload as Record<string, unknown>, imageMap, input)
+      }
+    }
   }
   catch {
     // 本地预览或后端未部署时写入本地记录
@@ -167,17 +176,47 @@ function unwrapData<T>(response: unknown): T | undefined {
   return response as T
 }
 
-function normalizeReport(raw: Record<string, unknown>): MyReportRecord {
+async function loadQualityImageMap() {
+  try {
+    const response = await fetchQualityImages()
+    return new Map(response.items.map(item => [item.id, item]))
+  }
+  catch {
+    return new Map<string, QualityImageItem>()
+  }
+}
+
+function normalizeReport(
+  raw: Record<string, unknown>,
+  imageMap = new Map<string, QualityImageItem>(),
+  fallback?: CreateMyReportInput,
+): MyReportRecord {
   const submittedAt = String(raw.submittedAt || raw.createTime || '')
+  const imageId = String(raw.imageId || fallback?.imageId || '')
+  const image = imageId ? imageMap.get(imageId) : undefined
+
   return {
     id: String(raw.id || raw.reportId || ''),
-    submitter: String(raw.submitter || ''),
+    submitter: String(raw.submitter || raw.username || ''),
     submittedAt: submittedAt || formatSubmittedAt(new Date()),
-    category: String(raw.category || ''),
-    variety: String(raw.variety || ''),
-    imageCaption: String(raw.imageCaption || '上报附图'),
-    imagePath: String(raw.imagePath || raw.imageUrl || ''),
-    description: String(raw.description || ''),
-    status: raw.status === 'done' ? 'done' : 'pending',
+    imageId: imageId || undefined,
+    category: String(raw.category || fallback?.category || (image ? getFullCategoryPath(image) : '')),
+    variety: String(raw.variety || fallback?.variety || (image ? formatVarietyLabel(image) : '')),
+    imageCaption: String(raw.imageCaption || (image ? `${image.varietyName}品质图` : '上报附图')),
+    imagePath: String(raw.imagePath || raw.imageUrl || fallback?.imagePath || image?.imageUrl || ''),
+    description: String(raw.description || raw.remark || fallback?.description || ''),
+    status: normalizeStatus(raw.status),
   }
+}
+
+function formatVarietyLabel(image: QualityImageItem) {
+  if (!image.varietyCode)
+    return image.varietyName
+  return `${image.varietyName}(${image.varietyCode})`
+}
+
+function normalizeStatus(value: unknown): ReportProcessStatus {
+  if (value === 'done' || value === 1 || value === '1')
+    return 'done'
+  return 'pending'
 }

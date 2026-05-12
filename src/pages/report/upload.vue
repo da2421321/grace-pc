@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, onMounted, ref } from 'vue'
+import { createMyReport } from '@/data/reports'
 
 const categoryInfo = ref('')
-const imageList = ref<string[]>([])
+const varietyInfo = ref('')
+const imageId = ref('')
+const imageUrl = ref('')
 const description = ref('')
+const submitting = ref(false)
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
@@ -16,6 +20,9 @@ const navRowStyle = computed(() => ({
   height: `${navMenuHeight.value}px`,
   lineHeight: `${navMenuHeight.value}px`,
 }))
+const displayCategoryInfo = computed(() => {
+  return [categoryInfo.value, varietyInfo.value].filter(Boolean).join(' / ')
+})
 
 onMounted(() => {
   initNavBar()
@@ -24,8 +31,10 @@ onMounted(() => {
 onLoad((options) => {
   if (!options)
     return
-  const { category, grade, type } = options
-  categoryInfo.value = `${category || ''}/${grade || ''}/${type || ''}`
+  categoryInfo.value = decodeQueryValue(options.category)
+  varietyInfo.value = decodeQueryValue(options.variety)
+  imageId.value = decodeQueryValue(options.imageId)
+  imageUrl.value = decodeQueryValue(options.imageUrl)
 })
 
 function initNavBar() {
@@ -61,24 +70,16 @@ function modifyCategory() {
   uni.navigateBack()
 }
 
-function chooseImage() {
-  uni.chooseImage({
-    count: 9 - imageList.value.length,
-    sizeType: ['compressed'],
-    sourceType: ['album', 'camera'],
-    success: (res) => {
-      imageList.value = [...imageList.value, ...res.tempFilePaths]
-    },
-  })
-}
-
 function cancel() {
   uni.navigateBack({ delta: 2 })
 }
 
-function submit() {
-  if (imageList.value.length === 0) {
-    uni.showToast({ title: '请上传图片', icon: 'none' })
+async function submit() {
+  if (submitting.value)
+    return
+
+  if (!imageId.value) {
+    uni.showToast({ title: '缺少品检图信息，请重新选择', icon: 'none' })
     return
   }
   if (!description.value.trim()) {
@@ -86,15 +87,33 @@ function submit() {
     return
   }
 
-  uni.showToast({
-    title: '提交成功',
-    icon: 'success',
-    success: () => {
-      setTimeout(() => {
-        uni.navigateBack({ delta: 2 })
-      }, 1500)
-    },
-  })
+  submitting.value = true
+  uni.showLoading({ title: '提交中...', mask: true })
+  try {
+    await createMyReport({
+      imageId: imageId.value,
+      category: categoryInfo.value,
+      variety: varietyInfo.value,
+      imagePath: imageUrl.value,
+      description: description.value,
+    })
+    uni.navigateTo({ url: '/pages/report/success' })
+  }
+  finally {
+    submitting.value = false
+    uni.hideLoading()
+  }
+}
+
+function decodeQueryValue(value: unknown) {
+  if (typeof value !== 'string')
+    return ''
+  try {
+    return decodeURIComponent(value)
+  }
+  catch {
+    return value
+  }
 }
 </script>
 
@@ -111,7 +130,7 @@ function submit() {
 
     <view class="category-info">
       <text class="category-label">品类：</text>
-      <text class="category-value">{{ categoryInfo }}</text>
+      <text class="category-value">{{ displayCategoryInfo }}</text>
       <button class="modify-btn" @click="modifyCategory">
         修改
       </button>
@@ -119,40 +138,20 @@ function submit() {
 
     <view class="upload-section">
       <view class="section-header">
-        <text class="section-title">上传图片</text>
+        <text class="section-title">关联品检图</text>
         <view class="section-underline" />
       </view>
 
       <view
-        v-if="imageList.length === 0"
         class="upload-area"
-        @click="chooseImage"
       >
-        <text class="upload-placeholder">点击上传图片</text>
-      </view>
-
-      <view
-        v-else
-        class="image-grid"
-      >
-        <view
-          v-for="(image, index) in imageList"
-          :key="index"
-          class="image-item"
-        >
-          <image
-            :src="image"
-            class="image-preview"
-            mode="aspectFill"
-          />
-        </view>
-        <view
-          v-if="imageList.length < 9"
-          class="image-item add-more"
-          @click="chooseImage"
-        >
-          <text class="add-icon">+</text>
-        </view>
+        <image
+          v-if="imageUrl"
+          :src="imageUrl"
+          class="linked-image"
+          mode="aspectFit"
+        />
+        <text v-else class="upload-placeholder">已选择品检图 {{ imageId }}</text>
       </view>
     </view>
 
@@ -180,7 +179,7 @@ function submit() {
           取消
         </button>
         <button class="action-btn submit-btn" @click="submit">
-          提交
+          {{ submitting ? '提交中' : '提交' }}
         </button>
       </view>
     </view>
@@ -322,6 +321,11 @@ function submit() {
   font-size: 30rpx;
   font-weight: 500;
   line-height: 40rpx;
+}
+
+.linked-image {
+  width: 100%;
+  height: 100%;
 }
 
 .image-grid {

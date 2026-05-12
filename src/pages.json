@@ -8,13 +8,6 @@
       }
     },
     {
-      "path": "pages/work/index",
-      "style": {
-        "navigationBarTitleText": "图片上报",
-        "navigationStyle": "custom"
-      }
-    },
-    {
       "path": "pages/mine/index",
       "style": {
         "navigationBarTitleText": "我的",
@@ -96,36 +89,6 @@
       "path": "pages/mine/pwd/index",
       "style": {
         "navigationBarTitleText": "修改密码"
-      }
-    },
-    {
-      "path": "pages/mine/setting/index",
-      "style": {
-        "navigationBarTitleText": "应用设置"
-      }
-    },
-    {
-      "path": "pages/mine/help/index",
-      "style": {
-        "navigationBarTitleText": "常见问题"
-      }
-    },
-    {
-      "path": "pages/mine/about/index",
-      "style": {
-        "navigationBarTitleText": "关于我们"
-      }
-    },
-    {
-      "path": "pages/common/webview/index",
-      "style": {
-        "navigationBarTitleText": "浏览网页"
-      }
-    },
-    {
-      "path": "pages/common/textview/index",
-      "style": {
-        "navigationBarTitleText": "浏览文本"
       }
     }
   ],

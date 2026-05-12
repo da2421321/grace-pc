@@ -269,17 +269,46 @@ export interface PcQualityImageResponse {
   items: PcQualityImageItem[]
 }
 
+export interface PcQualityCategoryNode {
+  code: string
+  name: string
+  path: string
+  children?: PcQualityCategoryNode[]
+}
+
+export interface PcQualityVarietyOption {
+  code: string
+  name: string
+  topCategory: string
+  categoryPath: string[]
+  groupKey?: string
+}
+
+export interface PcQualityCategoryVarietyResponse {
+  categories: PcQualityCategoryNode[]
+  varieties: PcQualityVarietyOption[]
+}
+
 export interface PcQualityReportCreateRequest {
-  category: string
-  variety: string
-  imageUrl: string
-  imageCaption?: string
-  description: string
+  imageId: string | number
+  remark: string
 }
 
 export interface PcQualityReportStatusRequest {
-  status: 'pending' | 'done'
-  handleRemark?: string
+  status: number
+}
+
+export interface PcQualityReportItem {
+  reportId: string | number
+  userId?: string | number
+  username?: string
+  imageId: string | number
+  imageUrl?: string
+  remark?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
+  [key: string]: unknown
 }
 
 export class Api<SecurityDataType extends unknown> {
@@ -492,8 +521,22 @@ export class Api<SecurityDataType extends unknown> {
         query,
         ...params,
       }),
+    categoryVarieties: (
+      query?: {
+        topCategory?: string
+        categoryPath?: string
+        keyword?: string
+      },
+      params: RequestParams = {},
+    ) =>
+      this.http.request<PcQualityCategoryVarietyResponse>({
+        path: '/front/pc/qc/category-varieties',
+        method: 'GET',
+        query,
+        ...params,
+      }),
     createReport: (data: PcQualityReportCreateRequest, params: RequestParams = {}) =>
-      this.http.request<any>({
+      this.http.request<PcQualityReportItem>({
         path: '/front/pc/qc/reports',
         method: 'POST',
         body: data,
@@ -501,13 +544,13 @@ export class Api<SecurityDataType extends unknown> {
         ...params,
       }),
     myReports: (params: RequestParams = {}) =>
-      this.http.request<any>({
+      this.http.request<PcQualityReportItem[]>({
         path: '/front/pc/qc/reports',
         method: 'GET',
         ...params,
       }),
     reportDetail: (reportId: string | number, params: RequestParams = {}) =>
-      this.http.request<any>({
+      this.http.request<PcQualityReportItem>({
         path: `/front/pc/qc/reports/${reportId}`,
         method: 'GET',
         ...params,

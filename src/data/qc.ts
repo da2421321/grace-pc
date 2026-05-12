@@ -24,6 +24,26 @@ export interface QualityImageApiResponse {
   items: QualityImageItem[]
 }
 
+export interface CategoryNode {
+  code: string
+  name: string
+  path: string
+  children?: CategoryNode[]
+}
+
+export interface VarietyOption {
+  code: string
+  name: string
+  topCategory: string
+  categoryPath: string[]
+  groupKey?: string
+}
+
+export interface CategoryVarietyResponse {
+  categories: CategoryNode[]
+  varieties: VarietyOption[]
+}
+
 export interface QualityImageQuery {
   topCategory?: string
   categoryPath?: string
@@ -113,6 +133,40 @@ export async function fetchQualityImages(query?: QualityImageQuery): Promise<Qua
   }
 }
 
+export async function fetchCategoryVarieties(query?: Omit<QualityImageQuery, 'varietyCode'>): Promise<CategoryVarietyResponse> {
+  try {
+    const response = await apis.pcQc.categoryVarieties(query)
+    const payload = unwrapData<CategoryVarietyResponse>(response)
+    if (payload && Array.isArray(payload.categories) && Array.isArray(payload.varieties)) {
+      return {
+        categories: payload.categories,
+        varieties: payload.varieties.map(item => ({
+          ...item,
+          categoryPath: toStringArray(item.categoryPath),
+        })),
+      }
+    }
+  }
+  catch {
+    // 本地预览或后端未部署时继续使用 quality-images 的本地兜底数据
+  }
+
+  const items = filterMockItems(query)
+  return {
+    categories: [],
+    varieties: Array.from(new Map(items.map(item => [
+      item.varietyCode,
+      {
+        code: item.varietyCode,
+        name: item.varietyName,
+        topCategory: item.topCategory,
+        categoryPath: item.categoryPath,
+        groupKey: item.groupKey,
+      },
+    ])).values()),
+  }
+}
+
 function unwrapData<T>(response: unknown): T | undefined {
   if (!response || typeof response !== 'object')
     return undefined
@@ -122,14 +176,44 @@ function unwrapData<T>(response: unknown): T | undefined {
   return response as T
 }
 
-function normalizeImageItem(item: QualityImageItem): QualityImageItem {
+type QualityImageSource = Partial<Omit<QualityImageItem, 'categoryPath'>> & {
+  imageId?: unknown
+  categoryPath?: unknown
+}
+
+function normalizeImageItem(item: QualityImageSource): QualityImageItem {
+  const rawCategoryPath = toStringArray(item.categoryPath)
+  const topCategory = toStringValue(item.topCategory) || rawCategoryPath[0] || '未分类'
+  const categoryPath = topCategory && rawCategoryPath[0] !== topCategory
+    ? [topCategory, ...rawCategoryPath]
+    : rawCategoryPath
+
   return {
-    ...item,
+    id: toStringValue(item.id || item.imageId),
     enabled: item.enabled !== false,
-    imageUrl: resolveImageUrl(item.imageUrl),
-    categoryPath: Array.isArray(item.categoryPath) ? item.categoryPath : [],
-    topCategory: item.topCategory || item.categoryPath?.[0] || '未分类',
+    imageUrl: resolveImageUrl(toStringValue(item.imageUrl)),
+    varietyName: toStringValue(item.varietyName),
+    varietyCode: toStringValue(item.varietyCode),
+    categoryPath,
+    topCategory,
+    groupKey: toStringValue(item.groupKey) || undefined,
+    description: toStringValue(item.description) || undefined,
+    placeholderTone: item.placeholderTone,
   }
+}
+
+function toStringValue(value: unknown) {
+  if (value === undefined || value === null)
+    return ''
+  return String(value)
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value))
+    return value.map(toStringValue).filter(Boolean)
+  if (typeof value === 'string')
+    return value.split(/[,/]/).map(part => part.trim()).filter(Boolean)
+  return []
 }
 
 function resolveImageUrl(url: string) {
