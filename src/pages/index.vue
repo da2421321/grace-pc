@@ -14,6 +14,10 @@ import {
   type QualityImageQuery,
 } from '@/data/qc'
 
+interface ContentChipOption extends FilterOption {
+  kind: 'top' | 'variety'
+}
+
 const statusBarHeight = ref(44)
 const loading = ref(true)
 const loadError = ref('')
@@ -37,7 +41,20 @@ const currentLevelOptions = computed(() => categoryLevelOptions.value[safeCatego
 const categoryNavOptions = computed(() => currentLevelOptions.value.map(option => formatCategoryOption(option)))
 const showLeftNav = computed(() => categoryNavOptions.value.length > 0)
 const varietyOptions = computed(() => getVarietyOptions(itemsAfterTop.value, selectedCategoryPath.value))
-const varietyChips = computed(() => varietyOptions.value.map(option => formatVarietyOption(option)))
+const contentChips = computed<ContentChipOption[]>(() => {
+  const hasCategoryFilter = selectedCategoryPath.value.some(value => value && value !== ALL_VALUE)
+  if (selectedTop.value === ALL_VALUE && !hasCategoryFilter) {
+    return topCategoryOptions.value.map(option => ({
+      ...formatTopOption(option),
+      kind: 'top',
+    }))
+  }
+
+  return varietyOptions.value.map(option => ({
+    ...formatVarietyOption(option),
+    kind: 'variety',
+  }))
+})
 const filteredItems = computed(() => items.value)
 
 onLoad(() => {
@@ -142,6 +159,20 @@ function selectVariety(value: string) {
   loadResults()
 }
 
+function isContentChipActive(option: ContentChipOption) {
+  return option.kind === 'top'
+    ? option.value === selectedTop.value
+    : option.value === selectedVariety.value
+}
+
+function selectContentChip(option: ContentChipOption) {
+  if (option.kind === 'top') {
+    selectTop(option.value)
+    return
+  }
+  selectVariety(option.value)
+}
+
 function openDetail(item: QualityImageItem) {
   detailItem.value = item
 }
@@ -150,17 +181,77 @@ function closeDetail() {
   detailItem.value = undefined
 }
 
-function previewImage(item: QualityImageItem) {
-  if (!item.imageUrl)
-    return
-  const imageUrl = item.imageUrl
-  closeDetail()
-  setTimeout(() => {
-    uni.previewImage({
-      urls: [imageUrl],
-      current: imageUrl,
+function getDetailImageUrl(item: QualityImageItem) {
+  return item.imageUrl || '/static/images/figma/detail/bag.png'
+}
+
+function getCardDescription(item: QualityImageItem) {
+  return item.description || `官方品质参考图：${item.varietyName}细节、材质与工艺示例。`
+}
+
+function getCardMeta(item: QualityImageItem) {
+  return `${item.varietyName}(${item.varietyCode})${item.categoryPath.join('/')}`
+}
+
+function getCondensedCategoryPath(item: QualityImageItem) {
+  return item.categoryPath.join('/')
+}
+
+function getDetailVarietyLabel(item: QualityImageItem) {
+  return `${item.varietyName}(${item.varietyCode})`
+}
+
+function saveDetailImage(item: QualityImageItem) {
+  const imageUrl = getDetailImageUrl(item)
+
+  // #ifdef H5
+  uni.previewImage({
+    urls: [imageUrl],
+    current: imageUrl,
+  })
+  return
+  // #endif
+
+  if (/^https?:\/\//.test(imageUrl)) {
+    uni.downloadFile({
+      url: imageUrl,
+      success: (res) => {
+        if (res.statusCode === 200 && res.tempFilePath) {
+          saveImageFile(res.tempFilePath)
+          return
+        }
+        showSaveFailed(imageUrl)
+      },
+      fail: () => showSaveFailed(imageUrl),
     })
-  }, 80)
+    return
+  }
+
+  uni.getImageInfo({
+    src: imageUrl,
+    success: res => saveImageFile(res.path),
+    fail: () => showSaveFailed(imageUrl),
+  })
+}
+
+function saveImageFile(filePath: string) {
+  uni.saveImageToPhotosAlbum({
+    filePath,
+    success: () => {
+      uni.showToast({ title: '保存成功', icon: 'success' })
+    },
+    fail: () => {
+      uni.showToast({ title: '保存失败，请长按图片保存', icon: 'none' })
+    },
+  })
+}
+
+function showSaveFailed(imageUrl: string) {
+  uni.showToast({ title: '保存失败，请稍后重试', icon: 'none' })
+  uni.previewImage({
+    urls: [imageUrl],
+    current: imageUrl,
+  })
 }
 
 function goReport() {
@@ -177,10 +268,7 @@ function formatTopOption(option: FilterOption): FilterOption {
 function formatCategoryOption(option: FilterOption): FilterOption {
   if (option.value === ALL_VALUE)
     return { ...option, label: '全部' }
-  return {
-    ...option,
-    label: option.label === '环保材质' ? '环保材料' : option.label,
-  }
+  return option
 }
 
 function formatVarietyOption(option: FilterOption): FilterOption {
@@ -224,9 +312,10 @@ function formatVarietyOption(option: FilterOption): FilterOption {
           placeholder="搜索品种、类目"
           placeholder-class="placeholder"
           @confirm="applySearch"
-        >
+        />
         <button
           class="search-button"
+          hover-class="none"
           @click="applySearch"
         >
           搜索
@@ -245,6 +334,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
             v-for="option in topTabs"
             :key="option.value"
             :class="['top-tab', option.value === selectedTop ? 'top-tab-active' : '']"
+            hover-class="none"
             @click="selectTop(option.value)"
           >
             <text>{{ option.label }}</text>
@@ -273,6 +363,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
         </text>
         <button
           class="retry-button"
+          hover-class="none"
           @click="load"
         >
           点击重试
@@ -292,6 +383,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
           <button
             v-if="safeCategoryStep > 0"
             class="category-item category-back"
+            hover-class="none"
             @click="goBackCategoryLevel"
           >
             返回
@@ -303,6 +395,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
               'category-item',
               option.value === (selectedCategoryPath[safeCategoryStep] ?? ALL_VALUE) ? 'category-item-active' : '',
             ]"
+            hover-class="none"
             @click="selectCategory(option.value)"
           >
             {{ option.label }}
@@ -311,16 +404,17 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 
         <view class="result-area">
           <scroll-view
-            class="variety-scroll"
+            class="product-filter-scroll"
             scroll-x
             :show-scrollbar="false"
           >
-            <view class="variety-list">
+            <view class="product-filter-list">
               <button
-                v-for="option in varietyChips"
-                :key="option.value"
-                :class="['variety-chip', option.value === selectedVariety ? 'variety-chip-active' : '']"
-                @click="selectVariety(option.value)"
+                v-for="option in contentChips"
+                :key="`${option.kind}-${option.value}`"
+                :class="['product-chip', isContentChipActive(option) ? 'product-chip-active' : '']"
+                hover-class="none"
+                @click="selectContentChip(option)"
               >
                 {{ option.label }}
               </button>
@@ -352,6 +446,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
               v-for="item in filteredItems"
               :key="item.id"
               class="image-card"
+              hover-class="none"
               @click="openDetail(item)"
             >
               <view :class="['image-wrap', `tone-${item.placeholderTone || 'green'}`]">
@@ -359,7 +454,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
                   v-if="item.imageUrl"
                   class="sample-image"
                   :src="item.imageUrl"
-                  mode="aspectFill"
+                  mode="aspectFit"
                 />
                 <text
                   v-else
@@ -370,10 +465,10 @@ function formatVarietyOption(option: FilterOption): FilterOption {
               </view>
               <view class="card-body">
                 <text class="card-title">
-                  {{ item.varietyName }}
+                  {{ getCardDescription(item) }}
                 </text>
                 <text class="card-meta">
-                  {{ getFullCategoryPath(item) }}
+                  {{ getCardMeta(item) }}
                 </text>
               </view>
             </button>
@@ -384,6 +479,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 
     <button
       class="report-fab"
+      hover-class="none"
       @click="goReport"
     >
       <text class="fab-plus">
@@ -393,58 +489,86 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 
     <view
       v-if="detailItem"
-      class="detail-mask"
-      @click="closeDetail"
+      class="detail-page-overlay"
     >
-      <view
-        class="detail-panel"
-        @click.stop
-      >
-        <button
-          class="detail-close"
-          @click="closeDetail"
+      <view class="detail-hero">
+        <image
+          class="detail-hero-bg"
+          src="/static/images/figma/detail/image-detail-bg.svg"
+          mode="scaleToFill"
+        />
+        <view
+          class="detail-top"
+          :style="{ paddingTop: `${statusBarHeight}px` }"
         >
-          ×
-        </button>
-        <view class="detail-image-box">
+          <button
+            class="detail-back"
+            hover-class="none"
+            @click="closeDetail"
+          >
+            <view class="detail-back-icon" />
+          </button>
+        </view>
+
+        <view class="detail-product-scene">
           <image
-            class="detail-image"
-            :src="detailItem.imageUrl"
+            class="detail-product-shadow"
+            src="/static/images/figma/detail/product-shadow.svg"
+            mode="aspectFill"
+          />
+          <image
+            class="detail-product-image"
+            :src="getDetailImageUrl(detailItem)"
             mode="aspectFit"
           />
         </view>
-        <scroll-view
-          class="detail-info"
-          scroll-y
-          :show-scrollbar="false"
-        >
-          <view class="detail-info-inner">
-            <text class="detail-label">
-              品类
-            </text>
-            <text class="detail-value">
-              {{ getFullCategoryPath(detailItem) }}
-            </text>
-            <text class="detail-label mt">
-              品种
-            </text>
-            <text class="detail-value">
-              {{ detailItem.varietyName }} ({{ detailItem.varietyCode }})
-            </text>
-            <text class="detail-label mt">
-              描述
-            </text>
-            <text class="detail-desc">
-              {{ detailItem.description || '暂无描述' }}
-            </text>
-            <button
-              class="preview-button"
-              @click="previewImage(detailItem)"
-            >
-              预览图片
-            </button>
+      </view>
+
+      <view class="detail-sheet">
+        <view class="detail-field-row">
+          <view class="detail-label-wrap">
+            <view class="detail-label-mark" />
+            <text class="detail-label">品类</text>
           </view>
-        </scroll-view>
+          <text class="detail-value">
+            {{ getCondensedCategoryPath(detailItem) }}
+          </text>
+        </view>
+
+        <view class="detail-field-row">
+          <view class="detail-label-wrap">
+            <view class="detail-label-mark" />
+            <text class="detail-label">品种</text>
+          </view>
+          <text class="detail-value detail-value-small">
+            {{ getDetailVarietyLabel(detailItem) }}
+          </text>
+        </view>
+
+        <view class="detail-field-row detail-desc-row">
+          <view class="detail-label-wrap">
+            <view class="detail-label-mark" />
+            <text class="detail-label">描述</text>
+          </view>
+          <text class="detail-value detail-desc">
+            {{ detailItem.description || getFullCategoryPath(detailItem) }}
+          </text>
+        </view>
+      </view>
+
+      <view class="detail-bottom-bar">
+        <button
+          class="detail-save-button"
+          hover-class="none"
+          @click="saveDetailImage(detailItem)"
+        >
+          <image
+            class="detail-save-icon"
+            src="/static/images/figma/detail/download.svg"
+            mode="aspectFit"
+          />
+          <text>保存图片</text>
+        </button>
       </view>
     </view>
   </view>
@@ -456,86 +580,92 @@ function formatVarietyOption(option: FilterOption): FilterOption {
   min-height: calc(100vh - var(--window-bottom, 0px));
   box-sizing: border-box;
   overflow-x: hidden;
-  background: linear-gradient(180deg, #efffdf 0%, #f7fff0 280rpx, #fff 520rpx);
-  color: #171a22;
+  background: #f7f7f7;
+  color: #25262b;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .hero {
+  position: relative;
+  height: 416rpx;
   box-sizing: border-box;
-  padding-left: 36rpx;
-  padding-right: 36rpx;
-  padding-bottom: 22rpx;
-  background:
-    radial-gradient(circle at 78% 22%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 30%),
-    linear-gradient(152deg, #caff62 0%, #dfff8b 48%, #ecffd0 100%);
+  overflow: hidden;
+  padding-right: 50rpx;
+  padding-left: 50rpx;
+  background: linear-gradient(186deg, rgba(199, 247, 112, 0.5) 0%, #c7f770 93%);
 }
 
 .hero-main {
   position: relative;
-  height: 188rpx;
+  height: 226rpx;
+  margin-top: 16rpx;
 }
 
 .brand-copy {
   position: absolute;
   z-index: 2;
-  left: 16rpx;
-  bottom: 10rpx;
+  left: 22rpx;
+  top: 66rpx;
 }
 
 .brand-title,
 .brand-subtitle {
   display: block;
-  color: #171a22;
+  color: #25262b;
 }
 
 .brand-title {
-  font-size: 54rpx;
+  font-size: 60rpx;
   font-weight: 900;
-  letter-spacing: 4rpx;
-  line-height: 58rpx;
+  letter-spacing: 8rpx;
+  line-height: 64rpx;
 }
 
 .brand-subtitle {
-  margin-top: 4rpx;
-  font-size: 36rpx;
+  margin-top: 6rpx;
+  font-size: 44rpx;
   font-weight: 500;
-  line-height: 42rpx;
+  line-height: 52rpx;
 }
 
 .hero-visual {
   position: absolute;
-  right: -12rpx;
-  top: -8rpx;
-  width: 306rpx;
-  height: 190rpx;
+  right: 18rpx;
+  top: -18rpx;
+  width: 344rpx;
+  height: 244rpx;
 }
 
 .search-row {
+  position: relative;
+  z-index: 2;
   display: flex;
-  height: 62rpx;
+  width: 650rpx;
+  height: 70rpx;
   align-items: center;
   box-sizing: border-box;
-  padding: 0 7rpx 0 26rpx;
-  border: 2rpx solid #93dc10;
-  border-radius: 16rpx;
+  margin: 0 auto;
+  padding: 0 6rpx 0 28rpx;
+  border: 2rpx solid #92e616;
+  border-radius: 20rpx;
   background: #fff;
 }
 
 .search-icon {
   position: relative;
-  width: 28rpx;
-  height: 28rpx;
+  width: 32rpx;
+  height: 32rpx;
   flex-shrink: 0;
-  margin-right: 14rpx;
+  margin-right: 18rpx;
 }
 
 .search-icon::before {
   position: absolute;
-  left: 0;
-  top: 0;
+  left: 1rpx;
+  top: 1rpx;
   width: 18rpx;
   height: 18rpx;
-  border: 3rpx solid #aab2c0;
+  border: 4rpx solid #a2a9bb;
   border-radius: 50%;
   content: '';
 }
@@ -543,11 +673,11 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 .search-icon::after {
   position: absolute;
   right: 2rpx;
-  bottom: 4rpx;
-  width: 12rpx;
-  height: 3rpx;
+  bottom: 5rpx;
+  width: 13rpx;
+  height: 4rpx;
   border-radius: 999rpx;
-  background: #aab2c0;
+  background: #a2a9bb;
   content: '';
   transform: rotate(45deg);
 }
@@ -555,71 +685,69 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 .search-input {
   min-width: 0;
   flex: 1;
-  height: 58rpx;
-  color: #171a22;
-  font-size: 24rpx;
-  line-height: 58rpx;
+  height: 66rpx;
+  color: #25262b;
+  font-size: 26rpx;
+  line-height: 66rpx;
 }
 
 .placeholder {
-  color: #969da8;
+  color: #777978;
 }
 
 .search-button {
   flex-shrink: 0;
-  width: 66rpx;
-  height: 46rpx;
+  width: 74rpx;
+  height: 50rpx;
   margin: 0;
   padding: 0;
-  border-radius: 12rpx;
-  background: #bdff22;
-  color: #161a1f;
-  font-size: 22rpx;
-  font-weight: 500;
-  line-height: 46rpx;
+  border-radius: 10rpx;
+  background: #92e616;
+  color: #25262b;
+  font-size: 26rpx;
+  font-weight: 400;
+  line-height: 50rpx;
 }
 
 .body-shell {
-  min-height: calc(100vh - var(--window-bottom, 0px) - 320rpx);
-  margin-top: 16rpx;
+  min-height: calc(100vh - var(--window-bottom, 0px) - 416rpx);
   overflow: hidden;
-  border-radius: 20rpx 20rpx 0 0;
+  border-radius: 30rpx 30rpx 0 0;
   background: #fff;
 }
 
 .top-tabs {
   width: 100%;
-  height: 112rpx;
+  height: 113rpx;
   white-space: nowrap;
   background: #fff;
 }
 
 .top-tabs-inner {
   display: inline-flex;
-  gap: 50rpx;
+  gap: 58rpx;
   min-width: 100%;
   box-sizing: border-box;
-  padding: 24rpx 68rpx 0;
+  padding: 36rpx 68rpx 0;
 }
 
 .top-tab {
   position: relative;
   width: auto;
-  height: 88rpx;
+  height: 77rpx;
   margin: 0;
   padding: 0;
   border-radius: 0;
   background: transparent;
-  color: #252932;
-  font-size: 26rpx;
+  color: #25262b;
+  font-size: 30rpx;
   font-weight: 400;
-  line-height: 72rpx;
+  line-height: 40rpx;
   white-space: nowrap;
 }
 
 .top-tab-active {
-  color: #171a22;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .top-tab-line {
@@ -627,10 +755,9 @@ function formatVarietyOption(option: FilterOption): FilterOption {
   left: 50%;
   bottom: 0;
   display: none;
-  width: 58rpx;
-  height: 8rpx;
-  border-radius: 999rpx;
-  background: #74df12;
+  width: 60rpx;
+  height: 10rpx;
+  background: #92e616;
   transform: translateX(-50%);
 }
 
@@ -640,82 +767,81 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 
 .main-panel {
   display: flex;
-  min-height: 760rpx;
+  min-height: 1094rpx;
   background: #fff;
 }
 
 .category-side {
-  width: 188rpx;
+  width: 180rpx;
+  min-height: 1094rpx;
   flex-shrink: 0;
   overflow: hidden;
-  background: #f7f7f7;
+  background: #fff url('/static/images/figma/home/side-menu-bg.svg') left top / 180rpx 1094rpx no-repeat;
 }
 
 .category-item {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
-  min-height: 96rpx;
+  height: 100rpx;
   margin: 0;
-  padding: 0 16rpx 0 66rpx;
+  padding: 0 20rpx 0 66rpx;
   border-radius: 0;
   background: transparent;
-  color: #171a22;
-  font-size: 24rpx;
+  color: #000;
+  font-size: 26rpx;
   font-weight: 400;
-  line-height: 96rpx;
+  line-height: 100rpx;
   text-align: left;
 }
 
 .category-item-active {
-  width: calc(100% - 20rpx);
-  margin-left: 20rpx;
-  padding-left: 46rpx;
-  border-radius: 16rpx 0 0 16rpx;
-  background: #fff;
-  font-weight: 500;
+  background: transparent;
+  border-radius: 0;
 }
 
 .category-back {
-  color: #5d6570;
-  font-size: 22rpx;
+  color: #777978;
+  font-size: 24rpx;
 }
 
 .result-area {
   min-width: 0;
   flex: 1;
-  padding-top: 20rpx;
   background: #fff;
 }
 
-.variety-scroll {
+.product-filter-scroll {
   width: 100%;
+  height: 100rpx;
   white-space: nowrap;
 }
 
-.variety-list {
+.product-filter-list {
   display: inline-flex;
-  gap: 16rpx;
+  gap: 12rpx;
   box-sizing: border-box;
   min-width: 100%;
-  padding: 0 20rpx 10rpx;
+  padding: 18rpx 30rpx 12rpx 19rpx;
 }
 
-.variety-chip {
-  min-width: 118rpx;
-  height: 72rpx;
+.product-chip {
+  min-width: 116rpx;
+  height: 70rpx;
   margin: 0;
   padding: 0 28rpx;
-  border-radius: 26rpx;
-  background: #f8f8f8;
-  color: #9a9ea7;
-  font-size: 24rpx;
+  border-radius: 30rpx;
+  background: #f7f7f7;
+  color: #777978;
+  font-size: 26rpx;
   font-weight: 400;
-  line-height: 72rpx;
+  line-height: 70rpx;
   white-space: nowrap;
 }
 
-.variety-chip-active {
-  background: #282b33;
+.product-chip-active {
+  background: #25262b;
   color: #fff;
   font-weight: 500;
 }
@@ -727,7 +853,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
   align-items: center;
   justify-content: center;
   gap: 18rpx;
-  color: #6f7780;
+  color: #777978;
   font-size: 24rpx;
   background: #fff;
 }
@@ -736,7 +862,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
   width: 56rpx;
   height: 56rpx;
   border: 6rpx solid #e4f8ca;
-  border-top-color: #74df12;
+  border-top-color: #92e616;
   border-radius: 50%;
 }
 
@@ -746,13 +872,13 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 }
 
 .state-title {
-  color: #171a22;
+  color: #25262b;
   font-size: 30rpx;
   font-weight: 700;
 }
 
 .state-desc {
-  color: #8c939d;
+  color: #777978;
   font-size: 24rpx;
   line-height: 36rpx;
 }
@@ -762,8 +888,8 @@ function formatVarietyOption(option: FilterOption): FilterOption {
   margin: 8rpx 0 0;
   padding: 0 30rpx;
   border-radius: 16rpx;
-  background: #74df12;
-  color: #171a22;
+  background: #92e616;
+  color: #25262b;
   font-size: 24rpx;
   line-height: 58rpx;
 }
@@ -785,7 +911,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 }
 
 .empty-title {
-  color: #8c8f96;
+  color: #777978;
   font-size: 24rpx;
   font-weight: 700;
   line-height: 34rpx;
@@ -793,7 +919,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 
 .empty-desc {
   margin-top: 4rpx;
-  color: #8c8f96;
+  color: #777978;
   font-size: 22rpx;
   line-height: 32rpx;
 }
@@ -801,39 +927,38 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 .image-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 16rpx;
-  padding: 12rpx 18rpx 32rpx;
+  gap: 42rpx 24rpx;
+  padding: 17rpx 52rpx 44rpx 26rpx;
 }
 
 .image-card {
-  width: calc(50% - 8rpx);
-  overflow: hidden;
+  width: 234rpx;
+  overflow: visible;
   margin: 0;
   padding: 0;
-  border: 1rpx solid #edf0f2;
-  border-radius: 16rpx;
-  background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  line-height: normal;
   text-align: left;
 }
 
 .image-wrap {
   position: relative;
-  width: 100%;
-  height: 168rpx;
+  display: flex;
+  width: 234rpx;
+  height: 282rpx;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  background: #f2f4f7;
+  border-radius: 16rpx;
+  background: #f7f7f7;
 }
 
-.tone-green {
-  background: linear-gradient(145deg, #e8f5e9, #caff62);
-}
-
-.tone-orange {
-  background: linear-gradient(145deg, #fff1e6, #ffd3ad);
-}
-
+.tone-green,
+.tone-orange,
 .tone-blue {
-  background: linear-gradient(145deg, #eef6ff, #bfddff);
+  background: #f7f7f7;
 }
 
 .sample-image {
@@ -842,11 +967,7 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 }
 
 .image-caption {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 62rpx;
-  color: #2e8b57;
+  color: #25262b;
   font-size: 28rpx;
   font-weight: 700;
   text-align: center;
@@ -854,167 +975,265 @@ function formatVarietyOption(option: FilterOption): FilterOption {
 
 .card-body {
   display: flex;
-  min-height: 92rpx;
+  min-height: 174rpx;
   flex-direction: column;
-  justify-content: center;
-  gap: 6rpx;
-  padding: 10rpx 14rpx 12rpx;
+  box-sizing: border-box;
+  padding: 16rpx 2rpx 0;
 }
 
 .card-title {
+  display: -webkit-box;
   overflow: hidden;
-  color: #171a22;
-  font-size: 24rpx;
-  font-weight: 700;
+  color: #25262b;
+  font-size: 26rpx;
+  font-weight: 400;
   line-height: 32rpx;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .card-meta {
+  display: -webkit-box;
   overflow: hidden;
-  color: #8d949e;
-  font-size: 20rpx;
-  line-height: 28rpx;
+  margin-top: 12rpx;
+  color: #777978;
+  font-size: 24rpx;
+  font-weight: 400;
+  line-height: 32rpx;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .report-fab {
   position: fixed;
   z-index: 20;
-  right: 60rpx;
-  bottom: calc(44rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
+  right: 46rpx;
+  bottom: calc(112rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
   display: flex;
-  width: 96rpx;
-  height: 96rpx;
+  width: 90rpx;
+  height: 90rpx;
   align-items: center;
   justify-content: center;
   margin: 0;
   padding: 0;
   border: 4rpx solid #fff;
   border-radius: 50%;
-  background: #80e600;
-  box-shadow: 0 6rpx 18rpx rgba(20, 30, 16, 0.2);
+  background: #92e616;
+  box-shadow: 0 8rpx 18rpx rgba(37, 38, 43, 0.2);
 }
 
 .fab-plus {
   color: #fff;
   font-size: 74rpx;
   font-weight: 300;
-  line-height: 82rpx;
+  line-height: 80rpx;
 }
 
 .search-button::after,
 .retry-button::after,
 .top-tab::after,
 .category-item::after,
-.variety-chip::after,
+.product-chip::after,
 .image-card::after,
 .report-fab::after,
-.detail-close::after,
-.preview-button::after {
+.detail-back::after,
+.detail-save-button::after {
   border: 0;
 }
 
-.detail-mask {
+.detail-page-overlay {
   position: fixed;
   z-index: 80;
   left: 0;
   right: 0;
   top: 0;
   bottom: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.62);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding-bottom: calc(130rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  color: #25262b;
 }
 
-.detail-panel {
+.detail-hero {
   position: relative;
-  display: flex;
-  min-height: 0;
-  width: 100%;
-  height: 92vh;
-  max-height: 92vh;
-  flex-direction: column;
+  height: 991rpx;
   overflow: hidden;
-  border-radius: 28rpx 28rpx 0 0;
-  background: #111;
-  color: #fff;
+  background: #ebe8e3;
 }
 
-.detail-close {
+.detail-hero-bg {
   position: absolute;
-  z-index: 2;
-  right: 18rpx;
-  top: 18rpx;
-  width: 58rpx;
-  height: 58rpx;
-  margin: 0;
-  padding: 0;
-  border-radius: 16rpx;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-size: 40rpx;
-  line-height: 58rpx;
+  z-index: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 1036rpx;
 }
 
-.detail-image-box {
+.detail-top {
+  position: relative;
+  z-index: 3;
+  box-sizing: border-box;
+  height: 176rpx;
+}
+
+.detail-back {
+  position: absolute;
+  left: 28rpx;
+  bottom: 28rpx;
   display: flex;
-  height: 48vh;
-  min-height: 260rpx;
-  max-height: 620rpx;
-  flex-shrink: 0;
+  width: 60rpx;
+  height: 60rpx;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 18rpx;
+  background: rgba(37, 38, 43, 0.48);
+  line-height: 1;
+}
+
+.detail-back-icon {
+  width: 22rpx;
+  height: 22rpx;
+  border-bottom: 4rpx solid #fff;
+  border-left: 4rpx solid #fff;
+  transform: rotate(45deg);
+}
+
+.detail-product-scene {
+  position: absolute;
+  z-index: 1;
+  left: 45rpx;
+  top: 185rpx;
+  width: 660rpx;
+  height: 660rpx;
+}
+
+.detail-product-image {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: 0;
+  width: 660rpx;
+  height: 660rpx;
+}
+
+.detail-product-shadow {
+  position: absolute;
+  z-index: 1;
+  left: 124rpx;
+  top: 490rpx;
+  width: 408rpx;
+  height: 97rpx;
+}
+
+.detail-sheet {
+  position: relative;
+  z-index: 2;
+  min-height: 633rpx;
+  margin-top: -1rpx;
   box-sizing: border-box;
-  padding: 80rpx 16rpx 16rpx;
+  padding: 0 50rpx;
+  border-radius: 40rpx 40rpx 0 0;
+  background: #fff;
 }
 
-.detail-image {
-  width: 100%;
-  height: 100%;
-}
-
-.detail-info {
-  min-height: 0;
-  flex: 1;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.1);
-}
-
-.detail-info-inner {
+.detail-field-row {
   display: flex;
-  flex-direction: column;
-  padding: 22rpx 28rpx calc(40rpx + env(safe-area-inset-bottom));
+  align-items: center;
+  min-height: 130rpx;
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+.detail-desc-row {
+  align-items: start;
+  padding-top: 45rpx;
+}
+
+.detail-label-wrap {
+  position: relative;
+  width: 152rpx;
+  flex-shrink: 0;
+  height: 40rpx;
+}
+
+.detail-label-mark {
+  position: absolute;
+  left: 1rpx;
+  bottom: 5rpx;
+  width: 58rpx;
+  height: 10rpx;
+  background: #92e616;
 }
 
 .detail-label {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 20rpx;
-}
-
-.detail-label.mt {
-  margin-top: 16rpx;
-}
-
-.detail-value,
-.detail-desc {
-  margin-top: 8rpx;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 24rpx;
-  line-height: 1.55;
-}
-
-.preview-button {
-  flex-shrink: 0;
-  height: 72rpx;
-  margin: 24rpx 0 0;
-  border-radius: 20rpx;
-  background: #80e600;
-  color: #171a22;
+  position: relative;
+  z-index: 1;
+  color: #25262b;
   font-size: 28rpx;
   font-weight: 700;
-  line-height: 72rpx;
+  line-height: 40rpx;
+}
+
+.detail-value {
+  min-width: 0;
+  flex: 1;
+  color: #777978;
+  font-size: 28rpx;
+  font-weight: 400;
+  line-height: 40rpx;
+}
+
+.detail-value-small {
+  font-size: 26rpx;
+}
+
+.detail-desc {
+  display: block;
+  white-space: normal;
+}
+
+.detail-bottom-bar {
+  position: fixed;
+  z-index: 90;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  height: calc(130rpx + env(safe-area-inset-bottom));
+  padding: 15rpx 50rpx calc(15rpx + env(safe-area-inset-bottom));
+  border-top: 1rpx solid #ebeaef;
+  background: #fff;
+}
+
+.detail-save-button {
+  display: flex;
+  width: 100%;
+  height: 100rpx;
+  align-items: center;
+  justify-content: center;
+  gap: 28rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 30rpx;
+  background: #25262b;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 400;
+  line-height: 100rpx;
+}
+
+.detail-save-icon {
+  width: 40rpx;
+  height: 40rpx;
 }
 </style>

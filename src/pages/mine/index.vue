@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { InternalUser } from '@/data/session'
 import { onShow } from '@dcloudio/uni-app'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import apis from '@/api'
 import {
   ADMIN_CONTACT,
@@ -12,14 +12,32 @@ import {
 import { useUserStore } from '@/store/user'
 
 type SheetKind = 'info' | 'pwd' | 'admin' | ''
+type UniPopupType =
+  | 'top'
+  | 'center'
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'message'
+  | 'dialog'
+  | 'share'
+type UniPopupExpose = {
+  open: (type?: UniPopupType) => void
+  close: () => void
+}
+type PopupChangeEvent = {
+  show: boolean
+}
 
 const userStore = useUserStore()
 const user = ref<InternalUser>(getCurrentUser())
 const sheet = ref<SheetKind>('')
+const sheetPopup = ref<UniPopupExpose | null>(null)
 const pwdOld = ref('')
 const pwdNew = ref('')
 const pwdAgain = ref('')
 const passwordSubmitting = ref(false)
+let sheetCloseTimer: ReturnType<typeof setTimeout> | undefined
 
 onShow(() => {
   loadUserInfo()
@@ -57,19 +75,55 @@ function normalizeUserInfo(raw: Record<string, unknown> = {}): InternalUser {
 }
 
 function openSheet(kind: SheetKind) {
+  if (!kind)
+    return
+
+  if (sheetCloseTimer) {
+    clearTimeout(sheetCloseTimer)
+    sheetCloseTimer = undefined
+  }
+
   sheet.value = kind
   if (kind === 'pwd') {
     pwdOld.value = ''
     pwdNew.value = ''
     pwdAgain.value = ''
   }
+
+  nextTick(() => {
+    sheetPopup.value?.open('bottom')
+  })
 }
 
 function closeSheet() {
+  if (!sheetPopup.value) {
+    resetSheetState()
+    return
+  }
+
+  sheetPopup.value.close()
+}
+
+function resetSheetState() {
   sheet.value = ''
   pwdOld.value = ''
   pwdNew.value = ''
   pwdAgain.value = ''
+}
+
+function onSheetChange(event: PopupChangeEvent) {
+  if (event.show) {
+    if (sheetCloseTimer) {
+      clearTimeout(sheetCloseTimer)
+      sheetCloseTimer = undefined
+    }
+    return
+  }
+
+  sheetCloseTimer = setTimeout(() => {
+    resetSheetState()
+    sheetCloseTimer = undefined
+  }, 300)
 }
 
 function goReports() {
@@ -219,49 +273,46 @@ function logout() {
     </button>
 
     <!-- 底部弹窗 -->
-    <view
-      v-if="sheet"
-      class="sheet-mask"
-      @click="closeSheet"
+    <uni-popup
+      ref="sheetPopup"
+      type="bottom"
+      background-color="#ffffff"
+      mask-background-color="rgba(37, 38, 43, 0.4)"
+      border-radius="30rpx 30rpx 0 0"
+      :safe-area="false"
+      @change="onSheetChange"
     >
       <view
-        class="sheet-panel"
-        @click.stop
+        v-if="sheet"
+        :class="['sheet-panel', sheet === 'pwd' ? 'sheet-panel-pwd' : 'sheet-panel-normal']"
       >
-        <view class="sheet-handle" />
         <view class="sheet-head">
           <text class="sheet-title">
             {{ sheet === 'info' ? '用户信息' : sheet === 'pwd' ? '修改密码' : '联系管理员' }}
-          </text>
-          <text
-            v-if="sheet === 'admin'"
-            class="sheet-subtitle"
-          >
-            {{ ADMIN_CONTACT.name }}
           </text>
         </view>
 
         <view
           v-if="sheet === 'info'"
-          class="sheet-body"
+          class="sheet-body sheet-body-info"
         >
           <view class="info-row">
-            <text class="info-key">姓名</text>
+            <text class="info-key">姓名：</text>
             <text class="info-value">{{ user.name }}</text>
           </view>
           <view class="info-row">
-            <text class="info-key">部门</text>
+            <text class="info-key">部门：</text>
             <text class="info-value">{{ user.dept }}</text>
           </view>
-          <view class="info-row no-border">
-            <text class="info-key">手机</text>
+          <view class="info-row">
+            <text class="info-key">手机：</text>
             <text class="info-value">{{ user.phone }}</text>
           </view>
         </view>
 
         <view
           v-else-if="sheet === 'pwd'"
-          class="sheet-body"
+          class="sheet-body sheet-body-pwd"
         >
           <view class="input-block">
             <text class="input-label">当前密码：</text>
@@ -269,6 +320,7 @@ function logout() {
               v-model="pwdOld"
               class="sheet-input"
               placeholder="请输入当前密码"
+              placeholder-class="sheet-input-placeholder"
               password
             >
           </view>
@@ -278,6 +330,7 @@ function logout() {
               v-model="pwdNew"
               class="sheet-input"
               placeholder="请输入新密码"
+              placeholder-class="sheet-input-placeholder"
               password
             >
           </view>
@@ -287,6 +340,7 @@ function logout() {
               v-model="pwdAgain"
               class="sheet-input"
               placeholder="再次输入新密码"
+              placeholder-class="sheet-input-placeholder"
               password
             >
           </view>
@@ -294,32 +348,50 @@ function logout() {
 
         <view
           v-else
-          class="sheet-body"
+          class="sheet-body sheet-body-contact"
         >
           <button
             class="contact-row"
+            hover-class="contact-row-active"
             @click="copyText(ADMIN_CONTACT.phone, '电话')"
           >
-            <text class="contact-key">电话</text>
+            <image
+              class="contact-icon contact-icon-phone"
+              src="/static/images/figma/mine/contact-phone.svg"
+              mode="aspectFit"
+            />
+            <text class="contact-key">电话：</text>
             <text class="contact-value">{{ ADMIN_CONTACT.phone }}</text>
           </button>
           <button
             class="contact-row"
+            hover-class="contact-row-active"
             @click="copyText(ADMIN_CONTACT.email, '邮箱')"
           >
-            <text class="contact-key">邮箱</text>
+            <image
+              class="contact-icon contact-icon-email"
+              src="/static/images/figma/mine/contact-email.svg"
+              mode="aspectFit"
+            />
+            <text class="contact-key">邮箱：</text>
             <text class="contact-value">{{ ADMIN_CONTACT.email }}</text>
           </button>
           <button
             class="contact-row"
+            hover-class="contact-row-active"
             @click="copyText(ADMIN_CONTACT.wechat, '企业微信')"
           >
+            <image
+              class="contact-icon contact-icon-wechat"
+              src="/static/images/figma/mine/contact-wechat.svg"
+              mode="aspectFit"
+            />
             <text class="contact-key">企业微信</text>
             <text class="contact-value">{{ ADMIN_CONTACT.wechat }}</text>
           </button>
         </view>
 
-        <view class="sheet-footer">
+        <view :class="['sheet-footer', sheet === 'pwd' ? 'sheet-footer-pwd' : 'sheet-footer-single']">
           <button
             v-if="sheet === 'pwd'"
             class="sheet-secondary"
@@ -328,14 +400,14 @@ function logout() {
             取消
           </button>
           <button
-            :class="sheet === 'pwd' ? 'sheet-primary flex-one' : 'sheet-primary'"
+            :class="sheet === 'pwd' ? 'sheet-primary sheet-primary-pwd' : 'sheet-primary sheet-primary-single'"
             @click="sheet === 'pwd' ? submitPassword() : closeSheet()"
           >
-            {{ sheet === 'pwd' ? (passwordSubmitting ? '提交中...' : '确定') : '关闭' }}
+            {{ sheet === 'pwd' ? (passwordSubmitting ? '保存中...' : '保存') : '关闭' }}
           </button>
         </view>
       </view>
-    </view>
+    </uni-popup>
   </view>
 </template>
 
@@ -356,8 +428,8 @@ function logout() {
   top: 0;
   left: 0;
   right: 0;
+  width: 100%;
   height: 421rpx;
-  background: linear-gradient(183deg, rgba(199, 247, 112, 0.5) 0%, #c7f770 100%);
   z-index: 0;
 }
 
@@ -500,148 +572,226 @@ function logout() {
 }
 
 /* 底部弹窗 */
-.sheet-mask {
-  position: fixed;
-  z-index: 60;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(0, 0, 0, 0.4);
-}
-
 .sheet-panel {
-  width: 100%;
-  max-height: 88vh;
+  position: relative;
+  box-sizing: border-box;
+  width: 750rpx;
+  max-width: 100vw;
   overflow: hidden;
   border-radius: 30rpx 30rpx 0 0;
   background: #fff;
-  box-shadow: 0 -8rpx 40rpx rgba(0, 0, 0, 0.15);
 }
 
-.sheet-handle {
-  width: 80rpx;
-  height: 8rpx;
-  margin: 16rpx auto 0;
-  border-radius: 999rpx;
-  background: #f7f7f7;
+.sheet-panel-normal {
+  height: 708rpx;
+}
+
+.sheet-panel-pwd {
+  height: 856rpx;
 }
 
 .sheet-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  padding: 24rpx 32rpx 16rpx;
+  position: relative;
+  height: 120rpx;
+}
+
+.sheet-panel-pwd .sheet-head {
+  height: 128rpx;
 }
 
 .sheet-title {
+  position: absolute;
+  top: 47rpx;
+  left: 0;
+  width: 100%;
   color: #25262b;
-  font-size: 30rpx;
+  font-size: 34rpx;
   font-weight: 800;
-}
-
-.sheet-subtitle {
-  color: #777978;
-  font-size: 24rpx;
+  line-height: 30rpx;
+  text-align: center;
 }
 
 .sheet-body {
-  max-height: 58vh;
-  overflow-y: auto;
-  padding: 0 32rpx 24rpx;
+  box-sizing: border-box;
+}
+
+.sheet-body-info,
+.sheet-body-contact {
+  padding: 0 49rpx 0 50rpx;
+}
+
+.sheet-body-pwd {
+  padding: 0 49rpx;
 }
 
 .info-row {
   display: flex;
+  box-sizing: border-box;
+  width: 651rpx;
+  height: 152rpx;
+  align-items: center;
   justify-content: space-between;
   gap: 24rpx;
   border-bottom: 2rpx solid #ebeaef;
-  padding: 24rpx 0;
+  background: #fff;
 }
 
-.info-row.no-border {
-  border-bottom: none;
+.info-row:last-child {
+  border-bottom: 0;
 }
 
 .info-key {
   flex-shrink: 0;
   color: #777978;
-  font-size: 26rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 34rpx;
 }
 
 .info-value {
+  flex: 1;
+  min-width: 0;
   color: #25262b;
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 34rpx;
   text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .input-block {
-  margin-top: 20rpx;
+  width: 652rpx;
+  height: 153rpx;
+  margin-bottom: 30rpx;
+}
+
+.input-block:last-child {
+  margin-bottom: 0;
 }
 
 .input-label {
   display: block;
-  margin-bottom: 12rpx;
+  height: 50rpx;
   color: #25262b;
   font-size: 26rpx;
+  font-weight: 500;
+  line-height: 50rpx;
 }
 
 .sheet-input {
   box-sizing: border-box;
-  width: 100%;
+  width: 652rpx;
   height: 100rpx;
+  margin-top: 3rpx;
   border: none;
-  border-radius: 0;
+  border-radius: 30rpx;
   background: #f7f7f7;
   padding: 0 43rpx;
   color: #25262b;
-  font-size: 26rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 100rpx;
 }
 
-.sheet-input::placeholder {
+.sheet-input::placeholder,
+.sheet-input-placeholder {
   color: #777978;
+  font-size: 30rpx;
+  font-weight: 500;
 }
 
 .contact-row {
   display: flex;
-  flex-direction: column;
-  width: 100%;
-  margin: 16rpx 0 0;
-  padding: 24rpx;
+  box-sizing: border-box;
+  width: 651rpx;
+  height: 152rpx;
+  align-items: center;
+  margin: 0;
+  padding: 0;
   border: none;
+  border-bottom: 2rpx solid #ebeaef;
   border-radius: 0;
-  background: #f7f7f7;
+  background: #fff;
   text-align: left;
+  line-height: 1;
+}
+
+.contact-row:last-child {
+  border-bottom: 0;
+}
+
+.contact-row-active {
+  background: #f7f7f7;
+}
+
+.contact-icon {
+  flex-shrink: 0;
+  width: 48rpx;
+  height: 48rpx;
+  margin-left: 4rpx;
+  margin-right: 15rpx;
+}
+
+.contact-icon-email {
+  width: 49rpx;
+}
+
+.contact-icon-wechat {
+  height: 40rpx;
 }
 
 .contact-key {
+  flex-shrink: 0;
   color: #777978;
-  font-size: 24rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 34rpx;
 }
 
 .contact-value {
-  margin-top: 8rpx;
+  flex: 1;
+  min-width: 0;
   color: #25262b;
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 34rpx;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sheet-footer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
-  gap: 16rpx;
+  box-sizing: border-box;
+  height: 130rpx;
+  align-items: center;
   border-top: 2rpx solid #ebeaef;
-  padding: 15rpx 50rpx calc(15rpx + env(safe-area-inset-bottom));
+  padding: 0 50rpx;
+}
+
+.sheet-footer-single {
+  justify-content: center;
+}
+
+.sheet-footer-pwd {
+  gap: 30rpx;
 }
 
 .sheet-secondary,
 .sheet-primary {
   height: 100rpx;
   margin: 0;
-  border-radius: 100rpx;
-  font-size: 26rpx;
+  padding: 0;
+  border: none;
+  border-radius: 30rpx;
+  font-size: 30rpx;
   font-weight: 400;
   line-height: 100rpx;
   text-align: center;
@@ -649,20 +799,21 @@ function logout() {
 
 .sheet-secondary {
   width: 260rpx;
-  border: 2rpx solid #25262b;
-  background: #fff;
+  background: #f7f7f7;
   color: #25262b;
 }
 
 .sheet-primary {
-  flex: 1;
   background: #25262b;
   color: #fff;
 }
 
-.sheet-primary.flex-one {
-  flex: 1;
-  width: auto;
+.sheet-primary-single {
+  width: 650rpx;
+}
+
+.sheet-primary-pwd {
+  width: 360rpx;
 }
 
 .profile-section::after,

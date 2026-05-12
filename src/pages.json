@@ -44,7 +44,8 @@
     {
       "path": "pages/report/list",
       "style": {
-        "navigationBarTitleText": "上报记录"
+        "navigationBarTitleText": "上报记录",
+        "navigationStyle": "custom"
       }
     },
     {
