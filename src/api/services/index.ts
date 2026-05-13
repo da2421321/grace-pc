@@ -262,24 +262,41 @@ export interface PcQualityImageItem {
   varietyName: string
   varietyCode: string
   categoryPath: string[]
+  categoryPathIds?: Array<string | number>
   topCategory: string
   groupKey?: string
   description?: string
 }
 
-export interface PcQualityImageResponse {
-  items: PcQualityImageItem[]
+export interface PcQualityPageResponse<T> {
+  items: T[]
+  total?: number
+  pageNum?: number
+  pageSize?: number
+  pages?: number
+  hasMore?: boolean
 }
+
+export interface PcQualityImageResponse extends PcQualityPageResponse<PcQualityImageItem> {}
 
 export interface PcQualityCategoryNode {
   id?: string | number
+  parentId?: string | number
   code: string
   name: string
   path: string
   pathIds?: Array<string | number>
   pathNames?: string[]
   level?: number
+  enabled?: boolean
+  leaf?: boolean
+  hasChildren?: boolean
+  hasVarieties?: boolean
   children?: PcQualityCategoryNode[]
+}
+
+export interface PcQualityCategoryListResponse {
+  items: PcQualityCategoryNode[]
 }
 
 export interface PcQualityVarietyOption {
@@ -287,19 +304,26 @@ export interface PcQualityVarietyOption {
   code: string
   name: string
   categoryId?: string | number
+  factoryId?: string | number
+  factoryName?: string
   topCategory: string
   categoryPath: string[]
   categoryPathIds?: Array<string | number>
   groupKey?: string
+  enabled?: boolean
+  imageCount?: number
+  hasEnabledImage?: boolean
 }
 
-export interface PcQualityCategoryVarietyResponse {
-  categories: PcQualityCategoryNode[]
-  varieties: PcQualityVarietyOption[]
-}
+export interface PcQualityVarietyResponse extends PcQualityPageResponse<PcQualityVarietyOption> {}
 
 export interface PcQualityReportCreateRequest {
-  imageId: string | number
+  imageId?: string | number
+  imageUrl?: string
+  category?: string
+  variety?: string
+  categoryId?: string | number
+  varietyId?: string | number
   remark: string
 }
 
@@ -311,11 +335,14 @@ export type ApiLongId = number | `${number}`
 
 export interface PcQualityReportItem {
   id?: string | number
-  reportId: string | number
+  reportId?: string | number
   userId?: string | number
   username?: string
-  imageId: string | number
+  imageId?: string | number
   imageUrl?: string
+  imagePath?: string
+  categoryId?: string | number
+  varietyId?: string | number
   category?: string
   variety?: string
   imageCaption?: string
@@ -337,7 +364,7 @@ export class Api<SecurityDataType extends unknown> {
   auth = {
     login: (data: LoginRequest, params: RequestParams = {}) =>
       this.http.request<LoginResponse>({
-        path: '/pc/login',
+        path: '/zj/login',
         method: 'POST',
         body: data,
         type: ContentType.Json,
@@ -521,42 +548,60 @@ export class Api<SecurityDataType extends unknown> {
       }),
   }
 
-  pcQc = {
+  zjQc = {
+    categories: (
+      query?: {
+        parentId?: string | number
+      },
+      params: RequestParams = {},
+    ) =>
+      this.http.request<PcQualityCategoryListResponse>({
+        path: '/front/zj/qc/categories',
+        method: 'GET',
+        query,
+        ...params,
+      }),
+    varieties: (
+      query?: {
+        categoryId?: string | number
+        keyword?: string
+        pageNum?: number
+        pageSize?: number
+      },
+      params: RequestParams = {},
+    ) =>
+      this.http.request<PcQualityVarietyResponse>({
+        path: '/front/zj/qc/varieties',
+        method: 'GET',
+        query,
+        ...params,
+      }),
     qualityImages: (
       query?: {
-        topCategory?: string
-        categoryPath?: string
         varietyCode?: string
         keyword?: string
         categoryId?: string | number
         varietyId?: string | number
-        includeDescendants?: boolean
+        pageNum?: number
+        pageSize?: number
       },
       params: RequestParams = {},
     ) =>
       this.http.request<PcQualityImageResponse>({
-        path: '/front/pc/qc/quality-images',
+        path: '/front/zj/qc/quality-images',
         method: 'GET',
         query,
         ...params,
       }),
-    categoryVarieties: (
-      query?: {
-        topCategory?: string
-        categoryPath?: string
-        keyword?: string
-      },
-      params: RequestParams = {},
-    ) =>
-      this.http.request<PcQualityCategoryVarietyResponse>({
-        path: '/front/pc/qc/category-varieties',
+    qualityImageDetail: (imageId: ApiLongId, params: RequestParams = {}) =>
+      this.http.request<PcQualityImageItem>({
+        path: `/front/zj/qc/quality-images/${imageId}`,
         method: 'GET',
-        query,
         ...params,
       }),
     createReport: (data: PcQualityReportCreateRequest, params: RequestParams = {}) =>
       this.http.request<PcQualityReportItem>({
-        path: '/front/pc/qc/reports',
+        path: '/front/zj/qc/reports',
         method: 'POST',
         body: data,
         type: ContentType.Json,
@@ -564,13 +609,13 @@ export class Api<SecurityDataType extends unknown> {
       }),
     myReports: (params: RequestParams = {}) =>
       this.http.request<PcQualityReportItem[]>({
-        path: '/front/pc/qc/reports',
+        path: '/front/zj/qc/reports',
         method: 'GET',
         ...params,
       }),
     reportDetail: (reportId: ApiLongId, params: RequestParams = {}) =>
       this.http.request<PcQualityReportItem>({
-        path: `/front/pc/qc/reports/${reportId}`,
+        path: `/front/zj/qc/reports/${reportId}`,
         method: 'GET',
         ...params,
       }),
@@ -580,11 +625,13 @@ export class Api<SecurityDataType extends unknown> {
       params: RequestParams = {},
     ) =>
       this.http.request<any>({
-        path: `/front/pc/qc/reports/${reportId}/status`,
+        path: `/front/zj/qc/reports/${reportId}/status`,
         method: 'PUT',
         body: data,
         type: ContentType.Json,
         ...params,
       }),
   }
+
+  pcQc = this.zjQc
 }

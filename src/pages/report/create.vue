@@ -2,8 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   ALL_VALUE,
-  fetchCategoryVarieties,
-  fetchQualityImages,
+  fetchCategories,
+  fetchVarieties,
+  findCategoryByValue,
   getCategoryLevelOptionsFromCatalog,
   getSelectedCategoryId,
   getSelectedCategoryPathNames,
@@ -11,11 +12,9 @@ import {
   getVarietyOptionsFromCatalog,
   type CatalogFilterOption,
   type CategoryNode,
-  type QualityImageItem,
   type VarietyOption,
 } from '@/data/qc'
 
-const items = ref<QualityImageItem[]>([])
 const categories = ref<CategoryNode[]>([])
 const varieties = ref<VarietyOption[]>([])
 const selectedTop = ref(ALL_VALUE)
@@ -60,12 +59,6 @@ const selectedVarietyLabel = computed(() => {
     return ''
   return selectedVarietyOption.value?.label ?? selectedVariety.value
 })
-const selectedItem = computed(() => {
-  const option = selectedVarietyOption.value
-  if (selectedTop.value === ALL_VALUE || !option)
-    return undefined
-  return items.value.find(item => imageMatchesVariety(item, option, selectedCategoryId.value))
-})
 const navBarStyle = computed(() => ({
   height: `${navBarHeight.value}px`,
 }))
@@ -84,14 +77,10 @@ async function loadOptions() {
   loading.value = true
   loadError.value = ''
   try {
-    const [catalogResponse, imageResponse] = await Promise.all([
-      fetchCategoryVarieties(),
-      fetchQualityImages(),
-    ])
-    categories.value = catalogResponse.categories
-    varieties.value = catalogResponse.varieties
-    items.value = imageResponse.items
-    selectDefaultOptions()
+    const categoryResponse = await fetchCategories()
+    categories.value = categoryResponse.items
+    varieties.value = []
+    await selectDefaultOptions()
   }
   catch (error) {
     loadError.value = error instanceof Error ? error.message : '加载品类失败，请稍后重试'
@@ -135,18 +124,25 @@ function cancel() {
 }
 
 function submit() {
-  const item = selectedItem.value
-  if (!item) {
-    uni.showToast({ title: '该品种暂无可用品检图，请更换选择', icon: 'none' })
+  if (!selectedCategoryLabel.value) {
+    uni.showToast({ title: '请选择品类', icon: 'none' })
+    return
+  }
+
+  if (!selectedVarietyOption.value) {
+    uni.showToast({ title: '请选择品种', icon: 'none' })
     return
   }
 
   const query = [
-    ['imageId', item.id],
     ['category', selectedCategoryLabel.value],
     ['variety', selectedVarietyLabel.value],
-    ['imageUrl', item.imageUrl],
-  ].map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&')
+    ['categoryId', selectedCategoryId.value || ''],
+    ['varietyId', selectedVarietyOption.value.varietyId || selectedVarietyOption.value.id || selectedVariety.value],
+  ]
+    .filter(([, value]) => Boolean(value))
+    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+    .join('&')
   const url = `/pages/report/upload?${query}`
 
   uni.navigateTo({
@@ -161,38 +157,52 @@ function submit() {
   })
 }
 
-function selectDefaultOptions() {
+async function selectDefaultOptions() {
   const firstTop = topCategoryOptions.value[0]
   if (!firstTop)
     return
   selectedTop.value = firstTop.value
-  fillFirstSubCategories(0)
-  selectFirstVariety()
+  await fillFirstSubCategories(0)
+  await selectFirstVariety()
 }
 
-function selectTopOption(value: string) {
+async function selectTopOption(value: string) {
   selectedTop.value = value
   selectedCategoryPath.value = []
   selectedVariety.value = ALL_VALUE
-  fillFirstSubCategories(0)
-  selectFirstVariety()
+  await ensureCategoryChildren(value)
+  await fillFirstSubCategories(0)
+  await selectFirstVariety()
 }
 
-function selectCategoryLevel(levelIndex: number, value: string) {
+async function selectCategoryLevel(levelIndex: number, value: string) {
   const next = selectedCategoryPath.value.slice(0, levelIndex)
   next[levelIndex] = value
   selectedCategoryPath.value = next
-  fillFirstSubCategories(levelIndex + 1)
-  selectFirstVariety()
+  await ensureCategoryChildren(value)
+  await fillFirstSubCategories(levelIndex + 1)
+  await selectFirstVariety()
 }
 
 function selectVarietyOption(value: string) {
   selectedVariety.value = value
 }
 
-function fillFirstSubCategories(startIndex: number) {
+async function ensureCategoryChildren(value: string) {
+  const node = findCategoryByValue(categories.value, value)
+  if (!node?.id || !node.hasChildren || node.children.length > 0)
+    return
+
+  const response = await fetchCategories({ parentId: node.id })
+  node.children = response.items
+  categories.value = [...categories.value]
+}
+
+async function fillFirstSubCategories(startIndex: number) {
   const path = selectedCategoryPath.value.slice(0, startIndex)
-  for (let guard = 0; guard < 8; guard++) {
+  for (let guard = 0; guard < 12; guard++) {
+    const current = path[path.length - 1] || selectedTop.value
+    await ensureCategoryChildren(current)
     const levels = getCategoryLevelOptionsFromCatalog(categories.value, selectedTop.value, path)
     const options = levels[path.length]?.filter(option => option.value !== ALL_VALUE) ?? []
     if (options.length === 0)
@@ -202,11 +212,19 @@ function fillFirstSubCategories(startIndex: number) {
   selectedCategoryPath.value = path
 }
 
-function selectFirstVariety() {
+async function selectFirstVariety() {
+  const categoryId = selectedCategoryId.value
+  if (!categoryId) {
+    varieties.value = []
+    selectedVariety.value = ALL_VALUE
+    return
+  }
+
+  const response = await fetchVarieties({ categoryId, pageNum: 1, pageSize: 100 })
+  varieties.value = response.items
   const options = getVarietyOptionsFromCatalog(varieties.value, selectedTop.value, selectedCategoryPath.value, categories.value)
     .filter(option => option.value !== ALL_VALUE)
-  const first = options.find(option => hasImageForVariety(option)) ?? options[0]
-  selectedVariety.value = first?.value ?? ALL_VALUE
+  selectedVariety.value = options[0]?.value ?? ALL_VALUE
 }
 
 function retryLoad() {
@@ -215,22 +233,6 @@ function retryLoad() {
 
 function getSectionTitle(levelIndex: number) {
   return levelIndex === 0 ? '请选择二级品类' : `请选择第 ${levelIndex + 2} 级品类`
-}
-
-function imageMatchesVariety(item: QualityImageItem, option: CatalogFilterOption, categoryId?: string) {
-  const matchesVariety = option.varietyId
-    ? item.varietyId === option.varietyId
-    : item.varietyCode === option.varietyCode || item.varietyCode === option.value
-  const matchesCategory = !categoryId
-    || item.categoryId === categoryId
-    || item.categoryPathIds?.includes(categoryId)
-
-  return matchesVariety && matchesCategory
-}
-
-function hasImageForVariety(option: CatalogFilterOption) {
-  const categoryId = option.categoryId || selectedCategoryId.value
-  return items.value.some(item => imageMatchesVariety(item, option, categoryId))
 }
 
 function formatVarietyLabel(option: CatalogFilterOption) {

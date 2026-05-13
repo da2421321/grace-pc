@@ -2,13 +2,17 @@
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, onMounted, ref } from 'vue'
 import { submitMyReport } from '@/data/reports'
+import { uploadCommon, type CommonUploadResponse } from '@/utils/upload'
 
 const categoryInfo = ref('')
 const varietyInfo = ref('')
-const imageId = ref('')
-const imageUrl = ref('')
+const categoryId = ref('')
+const varietyId = ref('')
+const selectedImagePath = ref('')
+const uploadedImageUrl = ref('')
 const description = ref('')
 const submitting = ref(false)
+const uploading = ref(false)
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
@@ -23,6 +27,12 @@ const navRowStyle = computed(() => ({
 const displayCategoryInfo = computed(() => {
   return [categoryInfo.value, varietyInfo.value].filter(Boolean).join(' / ')
 })
+const previewImageUrl = computed(() => selectedImagePath.value || uploadedImageUrl.value)
+const submitButtonText = computed(() => {
+  if (!submitting.value)
+    return '提交'
+  return uploading.value ? '上传中' : '提交中'
+})
 
 onMounted(() => {
   initNavBar()
@@ -33,8 +43,8 @@ onLoad((options) => {
     return
   categoryInfo.value = decodeQueryValue(options.category)
   varietyInfo.value = decodeQueryValue(options.variety)
-  imageId.value = decodeQueryValue(options.imageId)
-  imageUrl.value = decodeQueryValue(options.imageUrl)
+  categoryId.value = decodeQueryValue(options.categoryId)
+  varietyId.value = decodeQueryValue(options.varietyId)
 })
 
 function initNavBar() {
@@ -74,12 +84,39 @@ function cancel() {
   uni.navigateBack({ delta: 2 })
 }
 
+function chooseReportImage() {
+  if (submitting.value)
+    return
+
+  uni.chooseImage({
+    count: 1,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: (result) => {
+      const path = getChosenImagePath(result)
+      if (!path) {
+        uni.showToast({ title: '未获取到图片文件', icon: 'none' })
+        return
+      }
+
+      selectedImagePath.value = path
+      uploadedImageUrl.value = ''
+    },
+    fail: (error) => {
+      const message = String(error?.errMsg || '')
+      if (!message.includes('cancel')) {
+        uni.showToast({ title: '选择图片失败，请重试', icon: 'none' })
+      }
+    },
+  })
+}
+
 async function submit() {
   if (submitting.value)
     return
 
-  if (!imageId.value) {
-    uni.showToast({ title: '缺少品检图信息，请重新选择', icon: 'none' })
+  if (!previewImageUrl.value) {
+    uni.showToast({ title: '请上传品检图', icon: 'none' })
     return
   }
   if (!description.value.trim()) {
@@ -88,13 +125,15 @@ async function submit() {
   }
 
   submitting.value = true
-  uni.showLoading({ title: '提交中...', mask: true })
   try {
+    const reportImageUrl = await uploadSelectedImageIfNeeded()
+    uni.showLoading({ title: '提交中...', mask: true })
     await submitMyReport({
-      imageId: imageId.value,
+      imageUrl: reportImageUrl,
       category: categoryInfo.value,
       variety: varietyInfo.value,
-      imagePath: imageUrl.value,
+      categoryId: categoryId.value,
+      varietyId: varietyId.value,
       description: description.value,
     })
     uni.navigateTo({ url: '/pages/report/success' })
@@ -106,9 +145,55 @@ async function submit() {
     })
   }
   finally {
+    uploading.value = false
     submitting.value = false
     uni.hideLoading()
   }
+}
+
+async function uploadSelectedImageIfNeeded() {
+  if (uploadedImageUrl.value)
+    return uploadedImageUrl.value
+
+  if (!selectedImagePath.value)
+    throw new Error('请上传品检图')
+
+  uploading.value = true
+  uni.showLoading({ title: '上传中...', mask: true })
+  try {
+    const response = await uploadCommon(selectedImagePath.value)
+    const url = resolveUploadedImageUrl(response)
+    if (!url)
+      throw new Error('上传接口未返回图片地址')
+
+    uploadedImageUrl.value = url
+    return url
+  }
+  finally {
+    uploading.value = false
+    uni.hideLoading()
+  }
+}
+
+function getChosenImagePath(result: unknown) {
+  const data = result as { tempFilePaths?: unknown, tempFiles?: unknown }
+  const paths = Array.isArray(data.tempFilePaths)
+    ? data.tempFilePaths
+    : data.tempFilePaths ? [data.tempFilePaths] : []
+  const files = Array.isArray(data.tempFiles)
+    ? data.tempFiles
+    : data.tempFiles ? [data.tempFiles] : []
+  const firstFile = files[0] as { path?: unknown, tempFilePath?: unknown } | undefined
+
+  return toPathString(paths[0]) || toPathString(firstFile?.path) || toPathString(firstFile?.tempFilePath)
+}
+
+function toPathString(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function resolveUploadedImageUrl(response: Partial<CommonUploadResponse> & { imgUrl?: string }) {
+  return response.url || response.imgUrl || response.fileName || response.newFileName || ''
 }
 
 function decodeQueryValue(value: unknown) {
@@ -144,20 +229,22 @@ function decodeQueryValue(value: unknown) {
 
     <view class="upload-section">
       <view class="section-header">
-        <text class="section-title">关联品检图</text>
+        <text class="section-title">上传品检图</text>
         <view class="section-underline" />
       </view>
 
       <view
         class="upload-area"
+        @click="chooseReportImage"
       >
         <image
-          v-if="imageUrl"
-          :src="imageUrl"
+          v-if="previewImageUrl"
+          :src="previewImageUrl"
           class="linked-image"
           mode="aspectFit"
         />
-        <text v-else class="upload-placeholder">已选择品检图 {{ imageId }}</text>
+        <text v-else class="upload-placeholder">点击上传图片</text>
+        <text v-if="previewImageUrl" class="replace-text">重新上传</text>
       </view>
     </view>
 
@@ -185,7 +272,7 @@ function decodeQueryValue(value: unknown) {
           取消
         </button>
         <button class="action-btn submit-btn" @click="submit">
-          {{ submitting ? '提交中' : '提交' }}
+          {{ submitButtonText }}
         </button>
       </view>
     </view>
@@ -314,10 +401,12 @@ function decodeQueryValue(value: unknown) {
 }
 
 .upload-area {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 370rpx;
+  overflow: hidden;
   border-radius: 30rpx;
   background: #f7f7f7;
 }
@@ -334,35 +423,19 @@ function decodeQueryValue(value: unknown) {
   height: 100%;
 }
 
-.image-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20rpx;
-}
-
-.image-item {
-  width: 200rpx;
-  height: 200rpx;
-  border-radius: 20rpx;
-  overflow: hidden;
-  background: #f7f7f7;
-}
-
-.image-preview {
-  width: 100%;
-  height: 100%;
-}
-
-.add-more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.add-icon {
-  color: #777978;
-  font-size: 60rpx;
-  line-height: 1;
+.replace-text {
+  position: absolute;
+  right: 22rpx;
+  bottom: 22rpx;
+  min-width: 120rpx;
+  height: 52rpx;
+  padding: 0 24rpx;
+  border-radius: 26rpx;
+  background: rgba(37, 38, 43, 0.76);
+  color: #fff;
+  font-size: 24rpx;
+  line-height: 52rpx;
+  text-align: center;
 }
 
 .description-section {

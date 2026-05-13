@@ -35,18 +35,30 @@ export interface CatalogFilterOption extends FilterOption {
   varietyName?: string
 }
 
-export interface QualityImageApiResponse {
-  items: QualityImageItem[]
+export interface QualityPageResponse<T> {
+  items: T[]
+  total?: number
+  pageNum?: number
+  pageSize?: number
+  pages?: number
+  hasMore?: boolean
 }
+
+export interface QualityImageApiResponse extends QualityPageResponse<QualityImageItem> {}
 
 export interface CategoryNode {
   id?: string
+  parentId?: string
   code: string
   name: string
   path: string
   pathIds: string[]
   pathNames: string[]
   level?: number
+  enabled?: boolean
+  leaf?: boolean
+  hasChildren?: boolean
+  hasVarieties?: boolean
   children: CategoryNode[]
 }
 
@@ -55,10 +67,15 @@ export interface VarietyOption {
   code: string
   name: string
   categoryId?: string
+  factoryId?: string
+  factoryName?: string
   topCategory: string
   categoryPath: string[]
   categoryPathIds: string[]
   groupKey?: string
+  enabled?: boolean
+  imageCount?: number
+  hasEnabledImage?: boolean
 }
 
 export interface CategoryVarietyResponse {
@@ -66,14 +83,28 @@ export interface CategoryVarietyResponse {
   varieties: VarietyOption[]
 }
 
+export interface CategoryListResponse {
+  items: CategoryNode[]
+}
+
 export interface QualityImageQuery {
-  topCategory?: string
-  categoryPath?: string
   varietyCode?: string
   keyword?: string
   categoryId?: string | number
   varietyId?: string | number
-  includeDescendants?: boolean
+  pageNum?: number
+  pageSize?: number
+}
+
+export interface CategoryQuery {
+  parentId?: string | number
+}
+
+export interface VarietyQuery {
+  categoryId?: string | number
+  keyword?: string
+  pageNum?: number
+  pageSize?: number
 }
 
 const baseUrl = import.meta.env.VITE_APP_BASE_URL || ''
@@ -168,31 +199,12 @@ const MOCK_ITEMS: QualityImageItem[] = [
 
 export async function fetchQualityImages(query?: QualityImageQuery): Promise<QualityImageApiResponse> {
   try {
-    const response = await apis.pcQc.qualityImages(cleanQualityImageQuery(query))
+    const response = await apis.zjQc.qualityImages(cleanQualityImageQuery(query))
     const payload = unwrapData<QualityImageApiResponse>(response)
     if (payload && Array.isArray(payload.items)) {
       return {
+        ...payload,
         items: payload.items.map(normalizeImageItem),
-      }
-    }
-  }
-  catch {
-    // 本地预览或后端未部署时使用内置示例数据。
-  }
-
-  return {
-    items: filterMockItems(query).map(normalizeImageItem),
-  }
-}
-
-export async function fetchCategoryVarieties(query?: Omit<QualityImageQuery, 'varietyCode' | 'varietyId' | 'includeDescendants'>): Promise<CategoryVarietyResponse> {
-  try {
-    const response = await apis.pcQc.categoryVarieties(cleanCatalogQuery(query))
-    const payload = unwrapData<CategoryVarietyResponse>(response)
-    if (payload && Array.isArray(payload.categories) && Array.isArray(payload.varieties)) {
-      return {
-        categories: payload.categories.map(item => normalizeCategoryNode(item)),
-        varieties: payload.varieties.map(item => normalizeVarietyOption(item)),
       }
     }
   }
@@ -200,7 +212,105 @@ export async function fetchCategoryVarieties(query?: Omit<QualityImageQuery, 'va
     // 本地预览或后端未部署时继续使用 quality-images 的本地兜底数据。
   }
 
-  return buildMockCatalog(query)
+  const items = filterMockItems(query).map(normalizeImageItem)
+  return {
+    items,
+    total: items.length,
+    pageNum: 1,
+    pageSize: items.length,
+    pages: 1,
+    hasMore: false,
+  }
+}
+
+export async function fetchQualityImageDetail(imageId: string | number): Promise<QualityImageItem | undefined> {
+  try {
+    const response = await apis.zjQc.qualityImageDetail(imageId as `${number}`)
+    const payload = unwrapData<QualityImageItem>(response)
+    if (payload)
+      return normalizeImageItem(payload)
+  }
+  catch {
+    // 本地预览或后端未部署时继续使用本地兜底数据。
+  }
+
+  return MOCK_ITEMS.map(normalizeImageItem).find(item => item.id === String(imageId))
+}
+
+export async function fetchCategories(query?: CategoryQuery): Promise<CategoryListResponse> {
+  try {
+    const response = await apis.zjQc.categories(cleanCategoryQuery(query))
+    const payload = unwrapData<CategoryListResponse>(response)
+    if (payload && Array.isArray(payload.items)) {
+      return {
+        items: payload.items.map(item => normalizeCategoryNode(item)),
+      }
+    }
+  }
+  catch {
+    // 本地预览或后端未部署时继续使用本地兜底数据。
+  }
+
+  const catalog = buildMockCatalog()
+  const parentId = toStringValue(query?.parentId)
+  if (!parentId)
+    return { items: catalog.categories }
+
+  const parent = findCategoryByValue(catalog.categories, parentId)
+  return { items: parent?.children ?? [] }
+}
+
+export async function fetchVarieties(query?: VarietyQuery): Promise<QualityPageResponse<VarietyOption>> {
+  try {
+    const response = await apis.zjQc.varieties(cleanVarietyQuery(query))
+    const payload = unwrapData<QualityPageResponse<VarietyOption>>(response)
+    if (payload && Array.isArray(payload.items)) {
+      return {
+        ...payload,
+        items: payload.items.map(item => normalizeVarietyOption(item)),
+      }
+    }
+  }
+  catch {
+    // 本地预览或后端未部署时继续使用本地兜底数据。
+  }
+
+  const categoryId = toStringValue(query?.categoryId)
+  const keyword = query?.keyword?.trim()
+  const items = buildMockCatalog().varieties.filter((item) => {
+    if (categoryId && item.categoryId !== categoryId && !item.categoryPathIds.includes(categoryId))
+      return false
+    if (keyword && !fuzzyMatch(`${item.name} ${item.code} ${item.categoryPath.join('/')}`, keyword))
+      return false
+    return true
+  })
+
+  return {
+    items,
+    total: items.length,
+    pageNum: 1,
+    pageSize: items.length,
+    pages: 1,
+    hasMore: false,
+  }
+}
+
+export async function fetchCategoryVarieties(): Promise<CategoryVarietyResponse> {
+  const categories = await fetchCategoryTree()
+  const varietiesResponse = await fetchVarieties({ pageNum: 1, pageSize: 500 })
+  return {
+    categories,
+    varieties: varietiesResponse.items,
+  }
+}
+
+export async function fetchCategoryTree(parentId?: string | number): Promise<CategoryNode[]> {
+  const response = await fetchCategories(parentId ? { parentId } : undefined)
+  for (const node of response.items) {
+    if (node.id && node.hasChildren)
+      node.children = await fetchCategoryTree(node.id)
+  }
+  return response.items
 }
 
 function unwrapData<T>(response: unknown): T | undefined {
@@ -248,16 +358,22 @@ function normalizeImageItem(item: QualityImageSource): QualityImageItem {
   }
 }
 
-type CategoryNodeSource = Partial<Omit<CategoryNode, 'children' | 'pathIds' | 'pathNames' | 'id' | 'level'>> & {
+type CategoryNodeSource = Partial<Omit<CategoryNode, 'children' | 'pathIds' | 'pathNames' | 'id' | 'parentId' | 'level'>> & {
   id?: unknown
+  parentId?: unknown
   pathIds?: unknown
   pathNames?: unknown
   level?: unknown
+  enabled?: unknown
+  leaf?: unknown
+  hasChildren?: unknown
+  hasVarieties?: unknown
   children?: unknown
 }
 
 function normalizeCategoryNode(item: CategoryNodeSource): CategoryNode {
   const id = toStringValue(item.id) || undefined
+  const parentId = toStringValue(item.parentId) || undefined
   const pathNames = toStringArray(item.pathNames)
   const pathFromString = toStringArray(item.path)
   const name = toStringValue(item.name) || pathNames[pathNames.length - 1] || pathFromString[pathFromString.length - 1] || toStringValue(item.code)
@@ -269,21 +385,30 @@ function normalizeCategoryNode(item: CategoryNodeSource): CategoryNode {
 
   return {
     id,
+    parentId,
     code: toStringValue(item.code) || id || name,
     name,
     path: toStringValue(item.path) || normalizedPathNames.join('/'),
     pathIds: pathIds.length ? pathIds : (id ? [id] : []),
     pathNames: normalizedPathNames,
     level: Number.isFinite(Number(item.level)) ? Number(item.level) : undefined,
+    enabled: toOptionalBoolean(item.enabled),
+    leaf: toOptionalBoolean(item.leaf),
+    hasChildren: toOptionalBoolean(item.hasChildren) ?? children.length > 0,
+    hasVarieties: toOptionalBoolean(item.hasVarieties),
     children,
   }
 }
 
-type VarietyOptionSource = Partial<Omit<VarietyOption, 'id' | 'categoryId' | 'categoryPath' | 'categoryPathIds'>> & {
+type VarietyOptionSource = Partial<Omit<VarietyOption, 'id' | 'categoryId' | 'categoryPath' | 'categoryPathIds' | 'factoryId'>> & {
   id?: unknown
   categoryId?: unknown
+  factoryId?: unknown
   categoryPath?: unknown
   categoryPathIds?: unknown
+  enabled?: unknown
+  imageCount?: unknown
+  hasEnabledImage?: unknown
 }
 
 function normalizeVarietyOption(item: VarietyOptionSource): VarietyOption {
@@ -296,11 +421,24 @@ function normalizeVarietyOption(item: VarietyOptionSource): VarietyOption {
     code: toStringValue(item.code),
     name: toStringValue(item.name),
     categoryId: toStringValue(item.categoryId) || undefined,
+    factoryId: toStringValue(item.factoryId) || undefined,
+    factoryName: toStringValue(item.factoryName) || undefined,
     topCategory,
     categoryPath,
     categoryPathIds,
     groupKey: toStringValue(item.groupKey) || undefined,
+    enabled: toOptionalBoolean(item.enabled),
+    imageCount: Number.isFinite(Number(item.imageCount)) ? Number(item.imageCount) : undefined,
+    hasEnabledImage: toOptionalBoolean(item.hasEnabledImage),
   }
+}
+
+function toOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === undefined || value === null)
+    return undefined
+  if (typeof value === 'boolean')
+    return value
+  return Number(value) !== 0
 }
 
 function toStringValue(value: unknown) {
@@ -333,31 +471,32 @@ function cleanQualityImageQuery(query?: QualityImageQuery): QualityImageQuery | 
   for (const [key, value] of Object.entries(query) as Array<[keyof QualityImageQuery, QualityImageQuery[keyof QualityImageQuery]]>) {
     if (value === undefined || value === null || value === '' || value === ALL_VALUE)
       continue
-    if (key === 'includeDescendants' && value === false)
+    clean[key] = value as never
+  }
+  return Object.keys(clean).length ? clean : undefined
+}
+
+function cleanCategoryQuery(query?: CategoryQuery): CategoryQuery | undefined {
+  if (!query || query.parentId === undefined || query.parentId === null || query.parentId === '' || query.parentId === ALL_VALUE)
+    return undefined
+  return { parentId: query.parentId }
+}
+
+function cleanVarietyQuery(query?: VarietyQuery): VarietyQuery | undefined {
+  if (!query)
+    return undefined
+
+  const clean: VarietyQuery = {}
+  for (const [key, value] of Object.entries(query) as Array<[keyof VarietyQuery, VarietyQuery[keyof VarietyQuery]]>) {
+    if (value === undefined || value === null || value === '' || value === ALL_VALUE)
       continue
     clean[key] = value as never
   }
   return Object.keys(clean).length ? clean : undefined
 }
 
-function cleanCatalogQuery(query?: Omit<QualityImageQuery, 'varietyCode' | 'varietyId' | 'includeDescendants'>) {
-  if (!query)
-    return undefined
-
-  const clean: Record<string, string | number> = {}
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === '' || value === ALL_VALUE)
-      continue
-    if (typeof value === 'boolean')
-      continue
-    clean[key] = value
-  }
-  return Object.keys(clean).length ? clean : undefined
-}
-
 function filterMockItems(query?: QualityImageQuery) {
   const params = query ?? {}
-  const categoryPath = params.categoryPath?.replace(/ \/ /g, '/').trim()
   const categoryId = toStringValue(params.categoryId)
   const varietyId = toStringValue(params.varietyId)
 
@@ -368,10 +507,6 @@ function filterMockItems(query?: QualityImageQuery) {
       return false
     if (varietyId && item.varietyId !== varietyId)
       return false
-    if (params.topCategory && item.topCategory !== params.topCategory)
-      return false
-    if (categoryPath && !item.categoryPath.join('/').includes(categoryPath))
-      return false
     if (params.varietyCode && item.varietyCode !== params.varietyCode)
       return false
     if (params.keyword && !fuzzyMatch(buildSearchHaystack(item), params.keyword))
@@ -380,7 +515,7 @@ function filterMockItems(query?: QualityImageQuery) {
   })
 }
 
-function buildMockCatalog(query?: Omit<QualityImageQuery, 'varietyCode' | 'varietyId' | 'includeDescendants'>): CategoryVarietyResponse {
+function buildMockCatalog(query?: QualityImageQuery): CategoryVarietyResponse {
   const items = filterMockItems(query)
   return {
     categories: buildMockCategories(items),

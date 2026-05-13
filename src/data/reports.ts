@@ -1,6 +1,4 @@
-﻿import apis from '@/api'
-import { getCurrentUser } from './session'
-import { fetchQualityImages, getFullCategoryPath, type QualityImageItem } from './qc'
+import apis from '@/api'
 
 export type ReportProcessStatus = 'pending' | 'done'
 
@@ -19,221 +17,122 @@ export interface MyReportRecord {
 
 export interface CreateMyReportInput {
   imageId?: string | number
+  imageUrl?: string
   category?: string
   variety?: string
+  categoryId?: string | number
+  varietyId?: string | number
   description: string
-  imagePath?: string
-}
-
-const STORAGE_USER_REPORTS = 'miniapp_my_reports_user'
-
-const MOCK_REPORTS: MyReportRecord[] = [
-  {
-    id: 'rpt-001',
-    submitter: '小程序用户-李四',
-    submittedAt: '2026-05-03 16:42:18',
-    category: '包包 / A级 / 挎包',
-    variety: '挎包(BAG-001)',
-    imageCaption: '挎包品质图',
-    imagePath: '/static/images/figma/detail/bag.png',
-    description: '同品种多图：细节与整体观感参考。同品种多图：细节与整体观感参考。同品种多图：细节与整体观感参考。',
-    status: 'pending',
-  },
-  {
-    id: 'rpt-002',
-    submitter: '小程序用户-李四',
-    submittedAt: '2026-05-03 16:42:18',
-    category: '包包 / A级 / 挎包',
-    variety: '挎包(BAG-001)',
-    imageCaption: '挎包品质图',
-    imagePath: '/static/images/figma/detail/bag.png',
-    description: '同品种多图：细节与整体观感参考。同品种多图：细节与整体观感参考。同品种多图：细节与整体观感参考。',
-    status: 'pending',
-  },
-  {
-    id: 'rpt-003',
-    submitter: '小程序用户-王五',
-    submittedAt: '2026-04-28 09:05:00',
-    category: '服饰 / A级 / 外套',
-    variety: 'C08-1-总部仓',
-    imageCaption: '上报-C08-1',
-    description: '已按指引更换陈列图。',
-    status: 'done',
-  },
-]
-
-function pad2(value: number) {
-  return String(value).padStart(2, '0')
-}
-
-function formatSubmittedAt(date: Date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
-}
-
-function loadUserReports(): MyReportRecord[] {
-  try {
-    const raw = uni.getStorageSync(STORAGE_USER_REPORTS)
-    if (!raw || typeof raw !== 'string')
-      return []
-    const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? parsed as MyReportRecord[] : []
-  }
-  catch {
-    return []
-  }
-}
-
-function saveUserReports(list: MyReportRecord[]) {
-  uni.setStorageSync(STORAGE_USER_REPORTS, JSON.stringify(list))
-}
-
-export function getMyReports(): MyReportRecord[] {
-  return [...loadUserReports(), ...MOCK_REPORTS]
-}
-
-export function getMyReportById(id: string): MyReportRecord | undefined {
-  return loadUserReports().find(report => report.id === id) ?? MOCK_REPORTS.find(report => report.id === id)
 }
 
 export async function fetchMyReports(): Promise<MyReportRecord[]> {
-  try {
-    const response = await apis.pcQc.myReports()
-    const payload = unwrapData<unknown>(response)
-    if (Array.isArray(payload)) {
-      const imageMap = await loadQualityImageMap()
-      return payload.map(item => normalizeReport(item as Record<string, unknown>, imageMap))
-    }
-  }
-  catch {
-    // 本地预览或后端未部署时使用本地记录
-  }
-  return getMyReports()
+  const response = await apis.zjQc.myReports()
+  const payload = unwrapData<unknown>(response)
+  if (!Array.isArray(payload))
+    return []
+
+  return payload
+    .map(item => normalizeReport(item as Record<string, unknown>))
+    .filter(report => Boolean(report.id))
 }
 
 export async function fetchMyReportById(id: string): Promise<MyReportRecord | undefined> {
   const apiReportId = normalizeApiLongId(id)
   if (apiReportId === undefined)
-    return getMyReportById(id)
+    return undefined
 
-  try {
-    const response = await apis.pcQc.reportDetail(apiReportId)
-    const payload = unwrapData<unknown>(response)
-    if (payload && typeof payload === 'object') {
-      const imageMap = await loadQualityImageMap()
-      return normalizeReport(payload as Record<string, unknown>, imageMap)
-    }
-  }
-  catch {
-    // 本地预览或后端未部署时使用本地记录
-  }
-  return getMyReportById(id)
+  const response = await apis.zjQc.reportDetail(apiReportId)
+  const payload = unwrapData<unknown>(response)
+  if (!payload || typeof payload !== 'object')
+    return undefined
+
+  return normalizeReport(payload as Record<string, unknown>)
 }
 
 export function reportStatusLabel(status: ReportProcessStatus): string {
   return status === 'pending' ? '未处理' : '已处理'
 }
 
-export function addMyReport(input: CreateMyReportInput): MyReportRecord {
-  const user = getCurrentUser()
-  const record: MyReportRecord = {
-    id: `rpt-u-${Date.now()}`,
-    submitter: `小程序用户-${user.name}`,
-    submittedAt: formatSubmittedAt(new Date()),
-    imageId: input.imageId ? String(input.imageId) : undefined,
-    category: input.category?.trim() || '未选择品类',
-    variety: input.variety?.trim() || '未选择品种',
-    imageCaption: '上报附图',
-    imagePath: input.imagePath,
-    description: input.description.trim(),
-    status: 'pending',
-  }
-  saveUserReports([record, ...loadUserReports()])
-  return record
-}
-
 export async function createMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
-  const report = await submitMyReport(input)
-  saveUserReports([report, ...loadUserReports()])
-  return report
+  return submitMyReport(input)
 }
 
 export async function submitMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
-  if (!input.imageId)
-    throw new Error('缺少品检图 ID')
+  const imageUrl = input.imageUrl?.trim()
+  if (!imageUrl && !input.imageId)
+    throw new Error('请上传品检图')
 
-  const response = await apis.pcQc.createReport({
-    imageId: normalizeImageId(input.imageId),
-    remark: input.description.trim(),
+  const description = input.description.trim()
+  if (!description)
+    throw new Error('请输入问题描述')
+
+  const response = await apis.zjQc.createReport({
+    ...(input.imageId ? { imageId: normalizeImageId(input.imageId) } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(input.category ? { category: input.category.trim() } : {}),
+    ...(input.variety ? { variety: input.variety.trim() } : {}),
+    ...(input.categoryId ? { categoryId: input.categoryId } : {}),
+    ...(input.varietyId ? { varietyId: input.varietyId } : {}),
+    remark: description,
   })
   const payload = unwrapData<unknown>(response)
-  if (payload && typeof payload === 'object') {
-    const imageMap = await loadQualityImageMap()
-    return normalizeReport(payload as Record<string, unknown>, imageMap, input)
-  }
+  if (!payload || typeof payload !== 'object')
+    throw new Error('上报接口返回数据异常')
 
-  throw new Error('上报接口返回数据异常')
+  return normalizeReport(payload as Record<string, unknown>, {
+    ...input,
+    imageUrl,
+    description,
+  })
 }
 
 function unwrapData<T>(response: unknown): T | undefined {
   if (!response || typeof response !== 'object')
     return undefined
+
   const body = response as Record<string, unknown>
   if ('data' in body)
     return body.data as T
+
   return response as T
 }
 
-async function loadQualityImageMap() {
-  try {
-    const response = await fetchQualityImages()
-    return new Map(response.items.map(item => [item.id, item]))
-  }
-  catch {
-    return new Map<string, QualityImageItem>()
-  }
-}
-
-function normalizeReport(
-  raw: Record<string, unknown>,
-  imageMap = new Map<string, QualityImageItem>(),
-  fallback?: CreateMyReportInput,
-): MyReportRecord {
-  const submittedAt = String(raw.submittedAt || raw.createTime || '')
-  const imageId = String(raw.imageId || fallback?.imageId || '')
-  const image = imageId ? imageMap.get(imageId) : undefined
-
+function normalizeReport(raw: Record<string, unknown>, fallback?: CreateMyReportInput): MyReportRecord {
   return {
-    id: String(raw.id || raw.reportId || ''),
-    submitter: String(raw.submitter || raw.username || raw.createBy || ''),
-    submittedAt: submittedAt || formatSubmittedAt(new Date()),
-    imageId: imageId || undefined,
-    category: String(raw.category || fallback?.category || (image ? getFullCategoryPath(image) : '')),
-    variety: String(raw.variety || fallback?.variety || (image ? formatVarietyLabel(image) : '')),
-    imageCaption: String(raw.imageCaption || (image ? `${image.varietyName}品质图` : '上报附图')),
-    imagePath: String(raw.imagePath || raw.imageUrl || fallback?.imagePath || image?.imageUrl || ''),
-    description: String(raw.description || raw.remark || fallback?.description || ''),
+    id: toStringValue(raw.reportId || raw.id),
+    submitter: toStringValue(raw.username || raw.submitter),
+    submittedAt: toStringValue(raw.createTime || raw.submittedAt),
+    imageId: toStringValue(raw.imageId || fallback?.imageId) || undefined,
+    category: toStringValue(raw.category) || fallback?.category?.trim() || '',
+    variety: toStringValue(raw.variety) || fallback?.variety?.trim() || '',
+    imageCaption: toStringValue(raw.imageCaption),
+    imagePath: toStringValue(raw.imageUrl || raw.imagePath) || fallback?.imageUrl?.trim() || '',
+    description: toStringValue(raw.description || raw.remark) || fallback?.description?.trim() || '',
     status: normalizeStatus(raw.status),
   }
 }
 
-function formatVarietyLabel(image: QualityImageItem) {
-  if (!image.varietyCode)
-    return image.varietyName
-  return `${image.varietyName}(${image.varietyCode})`
+function toStringValue(value: unknown) {
+  if (value === undefined || value === null)
+    return ''
+  return String(value)
 }
 
 function normalizeImageId(imageId: string | number) {
   if (typeof imageId === 'number')
     return imageId
+
   const trimmed = imageId.trim()
   if (/^\d+$/.test(trimmed))
     return Number(trimmed)
+
   return trimmed
 }
 
 function normalizeApiLongId(id: string | number): number | `${number}` | undefined {
   if (typeof id === 'number')
     return Number.isFinite(id) ? id : undefined
+
   const trimmed = id.trim()
   return /^\d+$/.test(trimmed) ? trimmed as `${number}` : undefined
 }
@@ -241,9 +140,12 @@ function normalizeApiLongId(id: string | number): number | `${number}` | undefin
 function normalizeStatus(value: unknown): ReportProcessStatus {
   if (value === 'done')
     return 'done'
+
   if (typeof value === 'number')
     return value === 0 ? 'pending' : 'done'
+
   if (typeof value === 'string' && /^\d+$/.test(value))
     return Number(value) === 0 ? 'pending' : 'done'
+
   return 'pending'
 }

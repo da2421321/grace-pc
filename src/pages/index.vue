@@ -3,8 +3,11 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
-  fetchCategoryVarieties,
+  fetchCategories,
+  fetchCategoryTree,
   fetchQualityImages,
+  fetchVarieties,
+  findCategoryByValue,
   getCategoryLevelOptionsFromCatalog,
   getFullCategoryPath,
   getSelectedCategoryId,
@@ -82,11 +85,11 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const [catalogResponse, imageResponse] = await Promise.all([
-      fetchCategoryVarieties(),
-      fetchQualityImages(),
+    const [categories, imageResponse] = await Promise.all([
+      fetchCategoryTree(),
+      fetchQualityImages({ pageNum: 1, pageSize: 20 }),
     ])
-    catalog.value = catalogResponse
+    catalog.value = { categories, varieties: [] }
     items.value = imageResponse.items
   }
   catch (error) {
@@ -117,20 +120,15 @@ async function loadResults() {
 }
 
 function buildQueryParams(): QualityImageQuery {
-  const query: QualityImageQuery = {}
+  const query: QualityImageQuery = {
+    pageNum: 1,
+    pageSize: 20,
+  }
   const categoryId = getSelectedCategoryId(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
-  const categoryPathNames = getSelectedCategoryPathNames(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
   const selectedVarietyOption = varietyOptions.value.find(option => option.value === selectedVariety.value)
 
-  if (categoryId) {
+  if (categoryId)
     query.categoryId = categoryId
-    query.includeDescendants = true
-  }
-  else if (categoryPathNames.length > 0) {
-    query.topCategory = categoryPathNames[0]
-    if (categoryPathNames.length > 1)
-      query.categoryPath = categoryPathNames.slice(1).join('/')
-  }
   if (selectedVariety.value !== ALL_VALUE) {
     if (selectedVarietyOption?.varietyId)
       query.varietyId = selectedVarietyOption.varietyId
@@ -145,44 +143,79 @@ function buildQueryParams(): QualityImageQuery {
   return query
 }
 
-function applySearch() {
-  appliedSearchQuery.value = searchDraft.value.trim()
-  loadResults()
+async function ensureCategoryChildren(value: string) {
+  const node = findCategoryByValue(catalog.value.categories, value)
+  if (!node?.id || !node.hasChildren || node.children.length > 0)
+    return
+
+  const response = await fetchCategories({ parentId: node.id })
+  node.children = response.items
+  catalog.value = {
+    ...catalog.value,
+    categories: [...catalog.value.categories],
+  }
 }
 
-function selectTop(value: string) {
+async function refreshVarietiesForSelection() {
+  const categoryId = getSelectedCategoryId(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
+  if (!categoryId) {
+    catalog.value = { ...catalog.value, varieties: [] }
+    return
+  }
+
+  const response = await fetchVarieties({
+    categoryId,
+    keyword: appliedSearchQuery.value || undefined,
+    pageNum: 1,
+    pageSize: 100,
+  })
+  catalog.value = { ...catalog.value, varieties: response.items }
+}
+
+async function applySearch() {
+  appliedSearchQuery.value = searchDraft.value.trim()
+  await refreshVarietiesForSelection()
+  await loadResults()
+}
+
+async function selectTop(value: string) {
   selectedTop.value = value
   selectedCategoryPath.value = []
   selectedVariety.value = ALL_VALUE
   categoryStep.value = 0
-  loadResults()
+  await ensureCategoryChildren(value)
+  await refreshVarietiesForSelection()
+  await loadResults()
 }
 
-function selectCategory(value: string) {
+async function selectCategory(value: string) {
   const step = safeCategoryStep.value
   const next = selectedCategoryPath.value.slice(0, step)
   next[step] = value
   selectedCategoryPath.value = next
   selectedVariety.value = ALL_VALUE
+  await ensureCategoryChildren(value)
   const nextLevels = getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, next)
   if (value !== ALL_VALUE && step < nextLevels.length - 1)
     categoryStep.value = step + 1
-  loadResults()
+  await refreshVarietiesForSelection()
+  await loadResults()
 }
 
-function goBackCategoryLevel() {
+async function goBackCategoryLevel() {
   if (categoryStep.value <= 0)
     return
   const nextStep = categoryStep.value - 1
   selectedCategoryPath.value = selectedCategoryPath.value.slice(0, nextStep)
   selectedVariety.value = ALL_VALUE
   categoryStep.value = nextStep
-  loadResults()
+  await refreshVarietiesForSelection()
+  await loadResults()
 }
 
-function selectVariety(value: string) {
+async function selectVariety(value: string) {
   selectedVariety.value = value
-  loadResults()
+  await loadResults()
 }
 
 function isContentChipActive(option: ContentChipOption) {
@@ -326,7 +359,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
         </view>
         <image
           class="hero-visual"
-          src="/static/images/qc/home_hero.svg"
+          src="/static/images/qc/home_hero.png"
           mode="aspectFit"
         />
       </view>
@@ -658,10 +691,10 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .hero-visual {
   position: absolute;
-  right: 18rpx;
+  right: 28rpx;
   top: -18rpx;
-  width: 344rpx;
-  height: 244rpx;
+  width: 284rpx;
+  height: 284rpx;
 }
 
 .search-row {
