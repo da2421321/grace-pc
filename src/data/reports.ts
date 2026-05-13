@@ -111,8 +111,12 @@ export async function fetchMyReports(): Promise<MyReportRecord[]> {
 }
 
 export async function fetchMyReportById(id: string): Promise<MyReportRecord | undefined> {
+  const apiReportId = normalizeApiLongId(id)
+  if (apiReportId === undefined)
+    return getMyReportById(id)
+
   try {
-    const response = await apis.pcQc.reportDetail(id)
+    const response = await apis.pcQc.reportDetail(apiReportId)
     const payload = unwrapData<unknown>(response)
     if (payload && typeof payload === 'object') {
       const imageMap = await loadQualityImageMap()
@@ -148,23 +152,26 @@ export function addMyReport(input: CreateMyReportInput): MyReportRecord {
 }
 
 export async function createMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
-  try {
-    if (input.imageId) {
-      const response = await apis.pcQc.createReport({
-        imageId: input.imageId,
-        remark: input.description.trim(),
-      })
-      const payload = unwrapData<unknown>(response)
-      if (payload && typeof payload === 'object') {
-        const imageMap = await loadQualityImageMap()
-        return normalizeReport(payload as Record<string, unknown>, imageMap, input)
-      }
-    }
+  const report = await submitMyReport(input)
+  saveUserReports([report, ...loadUserReports()])
+  return report
+}
+
+export async function submitMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
+  if (!input.imageId)
+    throw new Error('缺少品检图 ID')
+
+  const response = await apis.pcQc.createReport({
+    imageId: normalizeImageId(input.imageId),
+    remark: input.description.trim(),
+  })
+  const payload = unwrapData<unknown>(response)
+  if (payload && typeof payload === 'object') {
+    const imageMap = await loadQualityImageMap()
+    return normalizeReport(payload as Record<string, unknown>, imageMap, input)
   }
-  catch {
-    // 本地预览或后端未部署时写入本地记录
-  }
-  return addMyReport(input)
+
+  throw new Error('上报接口返回数据异常')
 }
 
 function unwrapData<T>(response: unknown): T | undefined {
@@ -197,7 +204,7 @@ function normalizeReport(
 
   return {
     id: String(raw.id || raw.reportId || ''),
-    submitter: String(raw.submitter || raw.username || ''),
+    submitter: String(raw.submitter || raw.username || raw.createBy || ''),
     submittedAt: submittedAt || formatSubmittedAt(new Date()),
     imageId: imageId || undefined,
     category: String(raw.category || fallback?.category || (image ? getFullCategoryPath(image) : '')),
@@ -215,8 +222,28 @@ function formatVarietyLabel(image: QualityImageItem) {
   return `${image.varietyName}(${image.varietyCode})`
 }
 
+function normalizeImageId(imageId: string | number) {
+  if (typeof imageId === 'number')
+    return imageId
+  const trimmed = imageId.trim()
+  if (/^\d+$/.test(trimmed))
+    return Number(trimmed)
+  return trimmed
+}
+
+function normalizeApiLongId(id: string | number): number | `${number}` | undefined {
+  if (typeof id === 'number')
+    return Number.isFinite(id) ? id : undefined
+  const trimmed = id.trim()
+  return /^\d+$/.test(trimmed) ? trimmed as `${number}` : undefined
+}
+
 function normalizeStatus(value: unknown): ReportProcessStatus {
-  if (value === 'done' || value === 1 || value === '1')
+  if (value === 'done')
     return 'done'
+  if (typeof value === 'number')
+    return value === 0 ? 'pending' : 'done'
+  if (typeof value === 'string' && /^\d+$/.test(value))
+    return Number(value) === 0 ? 'pending' : 'done'
   return 'pending'
 }

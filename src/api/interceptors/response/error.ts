@@ -4,7 +4,7 @@ import { ApiError, getErrorMessage, type ApiResult } from '../../types'
 import { showToastAsync } from '@/utils/promisify'
 
 async function tryShowErrorMsg(error: AxiosError<ApiResult>) {
-  const message = error.response ? getErrorMessage(error.response) : error.message
+  const message = error.response ? getErrorMessage(error.response) : error.message || '网络异常'
   if (error.response?.status && error.response?.status >= 500) {
     await showToastAsync({
       title: message,
@@ -25,9 +25,10 @@ export async function errorInterceptor(
   if (isCancel(responseError))
     throw responseError
 
-  const apiError = new ApiError(
-    (responseError as AxiosError<ApiResult>).response!,
-  )
+  const axiosError = responseError as AxiosError<ApiResult>
+  const apiError = axiosError.response
+    ? new ApiError(axiosError.response)
+    : axiosError
 
   // 错误消息提示
   await tryShowErrorMsg(apiError)

@@ -10,7 +10,7 @@ export interface ApiResult<D = unknown> {
 export class RetryError extends Error {}
 
 export function getErrorMessage(
-  res: AxiosResponse<ApiResult>,
+  res?: AxiosResponse<ApiResult>,
 ): string {
   if (!res)
     return '网络异常'
@@ -19,11 +19,11 @@ export function getErrorMessage(
 }
 
 export class ApiError<T extends ApiResult> extends AxiosError {
-  response: AxiosResponse<ApiResult>
+  response?: AxiosResponse<ApiResult>
 
-  constructor(response: AxiosResponse<T>) {
+  constructor(response?: AxiosResponse<T>) {
     const message = getErrorMessage(response)
-    super(message, undefined, response.config, response.request, response)
+    super(message, undefined, response?.config, response?.request, response)
     this.response = response
   }
 }

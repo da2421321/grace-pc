@@ -255,6 +255,8 @@ export type DictQuery = Record<string, string | number | undefined>
 
 export interface PcQualityImageItem {
   id: string
+  categoryId?: string | number
+  varietyId?: string | number
   enabled: boolean
   imageUrl: string
   varietyName: string
@@ -270,17 +272,24 @@ export interface PcQualityImageResponse {
 }
 
 export interface PcQualityCategoryNode {
+  id?: string | number
   code: string
   name: string
   path: string
+  pathIds?: Array<string | number>
+  pathNames?: string[]
+  level?: number
   children?: PcQualityCategoryNode[]
 }
 
 export interface PcQualityVarietyOption {
+  id?: string | number
   code: string
   name: string
+  categoryId?: string | number
   topCategory: string
   categoryPath: string[]
+  categoryPathIds?: Array<string | number>
   groupKey?: string
 }
 
@@ -298,12 +307,19 @@ export interface PcQualityReportStatusRequest {
   status: number
 }
 
+export type ApiLongId = number | `${number}`
+
 export interface PcQualityReportItem {
+  id?: string | number
   reportId: string | number
   userId?: string | number
   username?: string
   imageId: string | number
   imageUrl?: string
+  category?: string
+  variety?: string
+  imageCaption?: string
+  description?: string
   remark?: string
   status?: number
   createTime?: string
@@ -512,10 +528,13 @@ export class Api<SecurityDataType extends unknown> {
         categoryPath?: string
         varietyCode?: string
         keyword?: string
+        categoryId?: string | number
+        varietyId?: string | number
+        includeDescendants?: boolean
       },
       params: RequestParams = {},
     ) =>
-      this.http.request<any>({
+      this.http.request<PcQualityImageResponse>({
         path: '/front/pc/qc/quality-images',
         method: 'GET',
         query,
@@ -549,14 +568,14 @@ export class Api<SecurityDataType extends unknown> {
         method: 'GET',
         ...params,
       }),
-    reportDetail: (reportId: string | number, params: RequestParams = {}) =>
+    reportDetail: (reportId: ApiLongId, params: RequestParams = {}) =>
       this.http.request<PcQualityReportItem>({
         path: `/front/pc/qc/reports/${reportId}`,
         method: 'GET',
         ...params,
       }),
     updateReportStatus: (
-      reportId: string | number,
+      reportId: ApiLongId,
       data: PcQualityReportStatusRequest,
       params: RequestParams = {},
     ) =>

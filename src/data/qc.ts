@@ -4,11 +4,14 @@ export const ALL_VALUE = '__all__'
 
 export interface QualityImageItem {
   id: string
+  categoryId?: string
+  varietyId?: string
   enabled: boolean
   imageUrl: string
   varietyName: string
   varietyCode: string
   categoryPath: string[]
+  categoryPathIds?: string[]
   topCategory: string
   groupKey?: string
   description?: string
@@ -20,22 +23,41 @@ export interface FilterOption {
   label: string
 }
 
+export interface CatalogFilterOption extends FilterOption {
+  id?: string
+  code?: string
+  path?: string
+  pathIds?: string[]
+  pathNames?: string[]
+  categoryId?: string
+  varietyId?: string
+  varietyCode?: string
+  varietyName?: string
+}
+
 export interface QualityImageApiResponse {
   items: QualityImageItem[]
 }
 
 export interface CategoryNode {
+  id?: string
   code: string
   name: string
   path: string
-  children?: CategoryNode[]
+  pathIds: string[]
+  pathNames: string[]
+  level?: number
+  children: CategoryNode[]
 }
 
 export interface VarietyOption {
+  id?: string
   code: string
   name: string
+  categoryId?: string
   topCategory: string
   categoryPath: string[]
+  categoryPathIds: string[]
   groupKey?: string
 }
 
@@ -49,18 +71,36 @@ export interface QualityImageQuery {
   categoryPath?: string
   varietyCode?: string
   keyword?: string
+  categoryId?: string | number
+  varietyId?: string | number
+  includeDescendants?: boolean
 }
 
 const baseUrl = import.meta.env.VITE_APP_BASE_URL || ''
 
+const MOCK_CATEGORY_IDS = {
+  bag: 'mock-cat-bag',
+  bagLevel: 'mock-cat-bag-a',
+  bagLeaf: 'mock-cat-bag-a-crossbody',
+  shoe: 'mock-cat-shoe',
+  shoeMaterial: 'mock-cat-shoe-eco',
+  shoeLeaf: 'mock-cat-shoe-eco-boot',
+  clothing: 'mock-cat-clothing',
+  clothingSeason: 'mock-cat-clothing-ss',
+  clothingLeaf: 'mock-cat-clothing-ss-coat',
+}
+
 const MOCK_ITEMS: QualityImageItem[] = [
   {
     id: 'img_001',
+    categoryId: MOCK_CATEGORY_IDS.bagLeaf,
+    varietyId: 'mock-var-bag-001',
     enabled: true,
     imageUrl: '/static/images/figma/home/bag-01.png',
     varietyName: '挎包',
     varietyCode: 'BAG-001',
     categoryPath: ['包包', 'A级', '挎包'],
+    categoryPathIds: [MOCK_CATEGORY_IDS.bag, MOCK_CATEGORY_IDS.bagLevel, MOCK_CATEGORY_IDS.bagLeaf],
     topCategory: '包包',
     groupKey: 'BAG-001',
     description: '官方品质参考图：面料纹理，走线与五金细节示例。',
@@ -68,11 +108,14 @@ const MOCK_ITEMS: QualityImageItem[] = [
   },
   {
     id: 'img_002',
+    categoryId: MOCK_CATEGORY_IDS.bagLeaf,
+    varietyId: 'mock-var-bag-001',
     enabled: true,
     imageUrl: '/static/images/figma/home/bag-02.png',
     varietyName: '挎包',
     varietyCode: 'BAG-001',
     categoryPath: ['包包', 'A级', '挎包'],
+    categoryPathIds: [MOCK_CATEGORY_IDS.bag, MOCK_CATEGORY_IDS.bagLevel, MOCK_CATEGORY_IDS.bagLeaf],
     topCategory: '包包',
     groupKey: 'BAG-001',
     description: '官方品质参考图：面料纹理，走线与五金细节示例。',
@@ -80,11 +123,14 @@ const MOCK_ITEMS: QualityImageItem[] = [
   },
   {
     id: 'img_003',
+    categoryId: MOCK_CATEGORY_IDS.shoeLeaf,
+    varietyId: 'mock-var-shoe-101',
     enabled: true,
     imageUrl: '/static/images/figma/home/shoe-01.png',
     varietyName: '短靴',
     varietyCode: 'SHOE-101',
     categoryPath: ['鞋靴', '环保材料', '短靴'],
+    categoryPathIds: [MOCK_CATEGORY_IDS.shoe, MOCK_CATEGORY_IDS.shoeMaterial, MOCK_CATEGORY_IDS.shoeLeaf],
     topCategory: '鞋靴',
     groupKey: 'SHOE-101',
     description: '官方品质参考图：鞋面材质、扣带与鞋底细节示例。',
@@ -92,11 +138,14 @@ const MOCK_ITEMS: QualityImageItem[] = [
   },
   {
     id: 'img_004',
+    categoryId: MOCK_CATEGORY_IDS.clothingLeaf,
+    varietyId: 'mock-var-clo-210',
     enabled: true,
     imageUrl: '/static/images/figma/home/coat-01.png',
     varietyName: '外套',
     varietyCode: 'CLO-210',
     categoryPath: ['服饰', '春夏', '外套'],
+    categoryPathIds: [MOCK_CATEGORY_IDS.clothing, MOCK_CATEGORY_IDS.clothingSeason, MOCK_CATEGORY_IDS.clothingLeaf],
     topCategory: '服饰',
     groupKey: 'CLO-210',
     description: '官方品质参考图：面料纹理，走线与版型细节示例。',
@@ -104,11 +153,14 @@ const MOCK_ITEMS: QualityImageItem[] = [
   },
   {
     id: 'img_005',
+    categoryId: 'mock-cat-shoe-disabled-sneaker',
+    varietyId: 'mock-var-shoe-999',
     enabled: false,
     imageUrl: '/static/images/figma/home/shoe-01.png',
     varietyName: '运动鞋',
     varietyCode: 'SHOE-999',
     categoryPath: ['鞋靴', '停用示例', '运动鞋'],
+    categoryPathIds: [MOCK_CATEGORY_IDS.shoe, 'mock-cat-shoe-disabled', 'mock-cat-shoe-disabled-sneaker'],
     topCategory: '鞋靴',
     groupKey: 'SHOE-999',
   },
@@ -116,7 +168,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
 
 export async function fetchQualityImages(query?: QualityImageQuery): Promise<QualityImageApiResponse> {
   try {
-    const response = await apis.pcQc.qualityImages(query)
+    const response = await apis.pcQc.qualityImages(cleanQualityImageQuery(query))
     const payload = unwrapData<QualityImageApiResponse>(response)
     if (payload && Array.isArray(payload.items)) {
       return {
@@ -133,38 +185,22 @@ export async function fetchQualityImages(query?: QualityImageQuery): Promise<Qua
   }
 }
 
-export async function fetchCategoryVarieties(query?: Omit<QualityImageQuery, 'varietyCode'>): Promise<CategoryVarietyResponse> {
+export async function fetchCategoryVarieties(query?: Omit<QualityImageQuery, 'varietyCode' | 'varietyId' | 'includeDescendants'>): Promise<CategoryVarietyResponse> {
   try {
-    const response = await apis.pcQc.categoryVarieties(query)
+    const response = await apis.pcQc.categoryVarieties(cleanCatalogQuery(query))
     const payload = unwrapData<CategoryVarietyResponse>(response)
     if (payload && Array.isArray(payload.categories) && Array.isArray(payload.varieties)) {
       return {
-        categories: payload.categories,
-        varieties: payload.varieties.map(item => ({
-          ...item,
-          categoryPath: toStringArray(item.categoryPath),
-        })),
+        categories: payload.categories.map(item => normalizeCategoryNode(item)),
+        varieties: payload.varieties.map(item => normalizeVarietyOption(item)),
       }
     }
   }
   catch {
-    // 本地预览或后端未部署时继续使用 quality-images 的本地兜底数据
+    // 本地预览或后端未部署时继续使用 quality-images 的本地兜底数据。
   }
 
-  const items = filterMockItems(query)
-  return {
-    categories: [],
-    varieties: Array.from(new Map(items.map(item => [
-      item.varietyCode,
-      {
-        code: item.varietyCode,
-        name: item.varietyName,
-        topCategory: item.topCategory,
-        categoryPath: item.categoryPath,
-        groupKey: item.groupKey,
-      },
-    ])).values()),
-  }
+  return buildMockCatalog(query)
 }
 
 function unwrapData<T>(response: unknown): T | undefined {
@@ -176,29 +212,94 @@ function unwrapData<T>(response: unknown): T | undefined {
   return response as T
 }
 
-type QualityImageSource = Partial<Omit<QualityImageItem, 'categoryPath'>> & {
+type QualityImageSource = Partial<Omit<QualityImageItem, 'categoryPath' | 'categoryPathIds'>> & {
   imageId?: unknown
+  categoryId?: unknown
+  varietyId?: unknown
   categoryPath?: unknown
+  categoryPathIds?: unknown
 }
 
 function normalizeImageItem(item: QualityImageSource): QualityImageItem {
   const rawCategoryPath = toStringArray(item.categoryPath)
+  const categoryPathIds = toStringArray(item.categoryPathIds)
   const topCategory = toStringValue(item.topCategory) || rawCategoryPath[0] || '未分类'
   const categoryPath = topCategory && rawCategoryPath[0] !== topCategory
     ? [topCategory, ...rawCategoryPath]
     : rawCategoryPath
+  const enabled = typeof item.enabled === 'boolean'
+    ? item.enabled
+    : Number(item.enabled ?? 1) !== 0
 
   return {
     id: toStringValue(item.id || item.imageId),
-    enabled: item.enabled !== false,
+    categoryId: toStringValue(item.categoryId) || undefined,
+    varietyId: toStringValue(item.varietyId) || undefined,
+    enabled,
     imageUrl: resolveImageUrl(toStringValue(item.imageUrl)),
     varietyName: toStringValue(item.varietyName),
     varietyCode: toStringValue(item.varietyCode),
     categoryPath,
+    categoryPathIds: categoryPathIds.length ? categoryPathIds : undefined,
     topCategory,
     groupKey: toStringValue(item.groupKey) || undefined,
     description: toStringValue(item.description) || undefined,
     placeholderTone: item.placeholderTone,
+  }
+}
+
+type CategoryNodeSource = Partial<Omit<CategoryNode, 'children' | 'pathIds' | 'pathNames' | 'id' | 'level'>> & {
+  id?: unknown
+  pathIds?: unknown
+  pathNames?: unknown
+  level?: unknown
+  children?: unknown
+}
+
+function normalizeCategoryNode(item: CategoryNodeSource): CategoryNode {
+  const id = toStringValue(item.id) || undefined
+  const pathNames = toStringArray(item.pathNames)
+  const pathFromString = toStringArray(item.path)
+  const name = toStringValue(item.name) || pathNames[pathNames.length - 1] || pathFromString[pathFromString.length - 1] || toStringValue(item.code)
+  const normalizedPathNames = pathNames.length ? pathNames : (pathFromString.length ? pathFromString : [name])
+  const pathIds = toStringArray(item.pathIds)
+  const children = Array.isArray(item.children)
+    ? item.children.map(child => normalizeCategoryNode(child as CategoryNodeSource))
+    : []
+
+  return {
+    id,
+    code: toStringValue(item.code) || id || name,
+    name,
+    path: toStringValue(item.path) || normalizedPathNames.join('/'),
+    pathIds: pathIds.length ? pathIds : (id ? [id] : []),
+    pathNames: normalizedPathNames,
+    level: Number.isFinite(Number(item.level)) ? Number(item.level) : undefined,
+    children,
+  }
+}
+
+type VarietyOptionSource = Partial<Omit<VarietyOption, 'id' | 'categoryId' | 'categoryPath' | 'categoryPathIds'>> & {
+  id?: unknown
+  categoryId?: unknown
+  categoryPath?: unknown
+  categoryPathIds?: unknown
+}
+
+function normalizeVarietyOption(item: VarietyOptionSource): VarietyOption {
+  const categoryPath = toStringArray(item.categoryPath)
+  const categoryPathIds = toStringArray(item.categoryPathIds)
+  const topCategory = toStringValue(item.topCategory) || categoryPath[0] || ''
+
+  return {
+    id: toStringValue(item.id) || undefined,
+    code: toStringValue(item.code),
+    name: toStringValue(item.name),
+    categoryId: toStringValue(item.categoryId) || undefined,
+    topCategory,
+    categoryPath,
+    categoryPathIds,
+    groupKey: toStringValue(item.groupKey) || undefined,
   }
 }
 
@@ -224,12 +325,48 @@ function resolveImageUrl(url: string) {
   return url
 }
 
+function cleanQualityImageQuery(query?: QualityImageQuery): QualityImageQuery | undefined {
+  if (!query)
+    return undefined
+
+  const clean: QualityImageQuery = {}
+  for (const [key, value] of Object.entries(query) as Array<[keyof QualityImageQuery, QualityImageQuery[keyof QualityImageQuery]]>) {
+    if (value === undefined || value === null || value === '' || value === ALL_VALUE)
+      continue
+    if (key === 'includeDescendants' && value === false)
+      continue
+    clean[key] = value as never
+  }
+  return Object.keys(clean).length ? clean : undefined
+}
+
+function cleanCatalogQuery(query?: Omit<QualityImageQuery, 'varietyCode' | 'varietyId' | 'includeDescendants'>) {
+  if (!query)
+    return undefined
+
+  const clean: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '' || value === ALL_VALUE)
+      continue
+    if (typeof value === 'boolean')
+      continue
+    clean[key] = value
+  }
+  return Object.keys(clean).length ? clean : undefined
+}
+
 function filterMockItems(query?: QualityImageQuery) {
   const params = query ?? {}
   const categoryPath = params.categoryPath?.replace(/ \/ /g, '/').trim()
+  const categoryId = toStringValue(params.categoryId)
+  const varietyId = toStringValue(params.varietyId)
 
   return MOCK_ITEMS.filter((item) => {
     if (!item.enabled)
+      return false
+    if (categoryId && item.categoryId !== categoryId && !item.categoryPathIds?.includes(categoryId))
+      return false
+    if (varietyId && item.varietyId !== varietyId)
       return false
     if (params.topCategory && item.topCategory !== params.topCategory)
       return false
@@ -243,72 +380,237 @@ function filterMockItems(query?: QualityImageQuery) {
   })
 }
 
-export function getTopCategoryOptions(items: QualityImageItem[]): FilterOption[] {
-  const tops = Array.from(new Set(items.map(item => item.topCategory || item.categoryPath[0] || '未分类')))
-  return [{ value: ALL_VALUE, label: '全部' }, ...tops.map(top => ({ value: top, label: top }))]
+function buildMockCatalog(query?: Omit<QualityImageQuery, 'varietyCode' | 'varietyId' | 'includeDescendants'>): CategoryVarietyResponse {
+  const items = filterMockItems(query)
+  return {
+    categories: buildMockCategories(items),
+    varieties: buildMockVarieties(items),
+  }
 }
 
-export function getItemsAfterTop(items: QualityImageItem[], selectedTop: string) {
-  if (selectedTop === ALL_VALUE)
-    return items
-  return items.filter(item => (item.topCategory || item.categoryPath[0]) === selectedTop)
-}
+function buildMockCategories(items: QualityImageItem[]): CategoryNode[] {
+  const roots: CategoryNode[] = []
+  const nodeMap = new Map<string, CategoryNode>()
 
-export function getCategoryLevelOptions(
-  itemsAfterTop: QualityImageItem[],
-  selectedCategoryPath: string[],
-): FilterOption[][] {
-  const maxSubCategoryDepth = itemsAfterTop.reduce((max, item) => {
-    return Math.max(max, Math.max(0, item.categoryPath.length - 1))
-  }, 0)
-  const levels: FilterOption[][] = []
+  for (const item of items) {
+    item.categoryPath.forEach((name, index) => {
+      const pathNames = item.categoryPath.slice(0, index + 1)
+      const pathIds = item.categoryPathIds?.slice(0, index + 1) ?? []
+      const id = pathIds[index] || `mock-cat-${pathNames.join('-')}`
+      let node = nodeMap.get(id)
 
-  for (let level = 0; level < maxSubCategoryDepth; level++) {
-    const prefix = selectedCategoryPath.slice(0, level)
-    const candidates = itemsAfterTop.filter((item) => {
-      for (let i = 0; i < prefix.length; i++) {
-        if (prefix[i] === ALL_VALUE)
-          continue
-        if (item.categoryPath[i + 1] !== prefix[i])
-          return false
+      if (!node) {
+        node = {
+          id,
+          code: id,
+          name,
+          path: pathNames.join('/'),
+          pathIds,
+          pathNames,
+          level: index + 1,
+          children: [],
+        }
+        nodeMap.set(id, node)
+
+        const parentId = pathIds[index - 1]
+        const parent = parentId ? nodeMap.get(parentId) : undefined
+        if (parent) {
+          parent.children.push(node)
+        }
+        else {
+          roots.push(node)
+        }
       }
-      return true
     })
+  }
 
-    const values = new Set<string>()
-    for (const item of candidates) {
-      const value = item.categoryPath[level + 1]
-      if (value)
-        values.add(value)
-    }
+  return roots
+}
 
-    if (values.size === 0)
+function buildMockVarieties(items: QualityImageItem[]): VarietyOption[] {
+  const map = new Map<string, VarietyOption>()
+  for (const item of items) {
+    const id = item.varietyId || item.varietyCode
+    if (map.has(id))
+      continue
+    map.set(id, {
+      id,
+      code: item.varietyCode,
+      name: item.varietyName,
+      categoryId: item.categoryId,
+      topCategory: item.topCategory,
+      categoryPath: item.categoryPath,
+      categoryPathIds: item.categoryPathIds ?? [],
+      groupKey: item.groupKey,
+    })
+  }
+  return Array.from(map.values())
+}
+
+
+export function getTopCategoryOptionsFromCatalog(categories: CategoryNode[]): CatalogFilterOption[] {
+  return [
+    { value: ALL_VALUE, label: '全部' },
+    ...categories.map(toCategoryFilterOption),
+  ]
+}
+
+export function getCategoryLevelOptionsFromCatalog(
+  categories: CategoryNode[],
+  selectedTop: string,
+  selectedCategoryPath: string[],
+): CatalogFilterOption[][] {
+  const topNode = findCategoryByValue(categories, selectedTop)
+  if (selectedTop !== ALL_VALUE && !topNode)
+    return []
+
+  const levels: CatalogFilterOption[][] = []
+  let nodes = topNode
+    ? topNode.children ?? []
+    : categories.flatMap(category => category.children ?? [])
+
+  for (let level = 0; nodes.length > 0 && level < 12; level++) {
+    levels.push([{ value: ALL_VALUE, label: '全部' }, ...nodes.map(toCategoryFilterOption)])
+
+    const selected = selectedCategoryPath[level]
+    if (!selected || selected === ALL_VALUE)
       break
 
-    levels.push([{ value: ALL_VALUE, label: '全部' }, ...Array.from(values).map(value => ({ value, label: value }))])
+    const selectedNode = nodes.find(node => categoryValueMatches(node, selected))
+    if (!selectedNode)
+      break
+
+    nodes = selectedNode.children ?? []
   }
 
   return levels
 }
 
-export function getVarietyOptions(itemsAfterTop: QualityImageItem[], selectedCategoryPath: string[]): FilterOption[] {
-  const prefix = selectedCategoryPath.filter(value => value !== ALL_VALUE)
-  const candidates = itemsAfterTop.filter((item) => {
-    for (let i = 0; i < prefix.length; i++) {
-      if (item.categoryPath[i + 1] !== prefix[i])
-        return false
-    }
-    return true
+export function getVarietyOptionsFromCatalog(
+  varieties: VarietyOption[],
+  selectedTop: string,
+  selectedCategoryPath: string[],
+  categories: CategoryNode[],
+): CatalogFilterOption[] {
+  const selectedCategory = getSelectedCategoryNode(categories, selectedTop, selectedCategoryPath)
+  const candidates = varieties.filter((variety) => {
+    if (!selectedCategory)
+      return true
+
+    if (selectedCategory.id && (variety.categoryId === selectedCategory.id || variety.categoryPathIds.includes(selectedCategory.id)))
+      return true
+
+    const selectedPath = selectedCategory.pathNames.join('/')
+    return selectedPath ? variety.categoryPath.join('/').startsWith(selectedPath) : true
   })
 
-  const map = new Map<string, FilterOption>()
-  for (const item of candidates) {
-    map.set(item.varietyCode, {
-      value: item.varietyCode,
-      label: `${item.varietyName} (${item.varietyCode})`,
-    })
+  const map = new Map<string, CatalogFilterOption>()
+  for (const variety of candidates) {
+    const option = toVarietyFilterOption(variety)
+    map.set(option.value, option)
   }
+
   return [{ value: ALL_VALUE, label: '全部品种' }, ...Array.from(map.values())]
+}
+
+export function findCategoryByValue(categories: CategoryNode[], value: string): CategoryNode | undefined {
+  if (!value || value === ALL_VALUE)
+    return undefined
+
+  for (const category of categories) {
+    if (categoryValueMatches(category, value))
+      return category
+    const child = findCategoryByValue(category.children ?? [], value)
+    if (child)
+      return child
+  }
+
+  return undefined
+}
+
+export function findVarietyByValue(varieties: VarietyOption[], value: string): VarietyOption | undefined {
+  if (!value || value === ALL_VALUE)
+    return undefined
+  return varieties.find((variety) => {
+    return variety.id === value || variety.code === value || toVarietyValue(variety) === value
+  })
+}
+
+export function getSelectedCategoryNode(
+  categories: CategoryNode[],
+  selectedTop: string,
+  selectedCategoryPath: string[],
+): CategoryNode | undefined {
+  const selectedCategories = selectedCategoryPath.filter(value => value && value !== ALL_VALUE)
+  const selectedCategory = selectedCategories[selectedCategories.length - 1]
+
+  return findCategoryByValue(categories, selectedCategory || selectedTop)
+}
+
+export function getSelectedCategoryId(
+  categories: CategoryNode[],
+  selectedTop: string,
+  selectedCategoryPath: string[],
+): string | undefined {
+  return getSelectedCategoryNode(categories, selectedTop, selectedCategoryPath)?.id
+}
+
+export function getSelectedCategoryPathNames(
+  categories: CategoryNode[],
+  selectedTop: string,
+  selectedCategoryPath: string[],
+): string[] {
+  const node = getSelectedCategoryNode(categories, selectedTop, selectedCategoryPath)
+  if (!node)
+    return []
+  if (node.pathNames.length)
+    return node.pathNames
+  return toStringArray(node.path)
+}
+
+function toCategoryFilterOption(node: CategoryNode): CatalogFilterOption {
+  return {
+    value: toCategoryValue(node),
+    label: node.name,
+    id: node.id,
+    code: node.code,
+    path: node.path,
+    pathIds: node.pathIds,
+    pathNames: node.pathNames,
+    categoryId: node.id,
+  }
+}
+
+function toVarietyFilterOption(variety: VarietyOption): CatalogFilterOption {
+  return {
+    value: toVarietyValue(variety),
+    label: variety.code ? `${variety.name} (${variety.code})` : variety.name,
+    id: variety.id,
+    code: variety.code,
+    path: variety.categoryPath.join('/'),
+    pathIds: variety.categoryPathIds,
+    pathNames: variety.categoryPath,
+    categoryId: variety.categoryId,
+    varietyId: variety.id,
+    varietyCode: variety.code,
+    varietyName: variety.name,
+  }
+}
+
+function toCategoryValue(node: CategoryNode) {
+  return node.id || node.path || node.code || node.name
+}
+
+function toVarietyValue(variety: VarietyOption) {
+  return variety.id || variety.code
+}
+
+function categoryValueMatches(node: CategoryNode, value: string) {
+  return toCategoryValue(node) === value
+    || node.id === value
+    || node.path === value
+    || node.code === value
+    || node.name === value
 }
 
 export function buildReportCategoryPath(selectedTop: string, selectedCategoryPath: string[]): string {

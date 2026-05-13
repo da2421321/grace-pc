@@ -3,18 +3,21 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
+  fetchCategoryVarieties,
   fetchQualityImages,
-  getCategoryLevelOptions,
+  getCategoryLevelOptionsFromCatalog,
   getFullCategoryPath,
-  getItemsAfterTop,
-  getTopCategoryOptions,
-  getVarietyOptions,
-  type FilterOption,
+  getSelectedCategoryId,
+  getSelectedCategoryPathNames,
+  getTopCategoryOptionsFromCatalog,
+  getVarietyOptionsFromCatalog,
+  type CatalogFilterOption,
+  type CategoryVarietyResponse,
   type QualityImageItem,
   type QualityImageQuery,
 } from '@/data/qc'
 
-interface ContentChipOption extends FilterOption {
+interface ContentChipOption extends CatalogFilterOption {
   kind: 'top' | 'variety'
 }
 
@@ -22,7 +25,7 @@ const statusBarHeight = ref(44)
 const loading = ref(true)
 const loadError = ref('')
 const items = ref<QualityImageItem[]>([])
-const catalogItems = ref<QualityImageItem[]>([])
+const catalog = ref<CategoryVarietyResponse>({ categories: [], varieties: [] })
 const searchDraft = ref('')
 const appliedSearchQuery = ref('')
 const selectedTop = ref(ALL_VALUE)
@@ -32,15 +35,23 @@ const categoryStep = ref(0)
 const detailItem = ref<QualityImageItem>()
 let queryRequestId = 0
 
-const topCategoryOptions = computed(() => getTopCategoryOptions(catalogItems.value))
+const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(catalog.value.categories))
 const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
-const itemsAfterTop = computed(() => getItemsAfterTop(catalogItems.value, selectedTop.value))
-const categoryLevelOptions = computed(() => getCategoryLevelOptions(itemsAfterTop.value, selectedCategoryPath.value))
+const categoryLevelOptions = computed(() => {
+  return getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
+})
 const safeCategoryStep = computed(() => Math.min(categoryStep.value, Math.max(0, categoryLevelOptions.value.length - 1)))
 const currentLevelOptions = computed(() => categoryLevelOptions.value[safeCategoryStep.value] ?? [])
 const categoryNavOptions = computed(() => currentLevelOptions.value.map(option => formatCategoryOption(option)))
 const showLeftNav = computed(() => categoryNavOptions.value.length > 0)
-const varietyOptions = computed(() => getVarietyOptions(itemsAfterTop.value, selectedCategoryPath.value))
+const varietyOptions = computed(() => {
+  return getVarietyOptionsFromCatalog(
+    catalog.value.varieties,
+    selectedTop.value,
+    selectedCategoryPath.value,
+    catalog.value.categories,
+  )
+})
 const contentChips = computed<ContentChipOption[]>(() => {
   const hasCategoryFilter = selectedCategoryPath.value.some(value => value && value !== ALL_VALUE)
   if (selectedTop.value === ALL_VALUE && !hasCategoryFilter) {
@@ -71,9 +82,12 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const response = await fetchQualityImages()
-    catalogItems.value = response.items
-    items.value = response.items
+    const [catalogResponse, imageResponse] = await Promise.all([
+      fetchCategoryVarieties(),
+      fetchQualityImages(),
+    ])
+    catalog.value = catalogResponse
+    items.value = imageResponse.items
   }
   catch (error) {
     loadError.value = error instanceof Error ? error.message : '加载失败，请稍后重试'
@@ -104,16 +118,27 @@ async function loadResults() {
 
 function buildQueryParams(): QualityImageQuery {
   const query: QualityImageQuery = {}
-  const categoryPath = selectedCategoryPath.value
-    .filter(value => value && value !== ALL_VALUE)
-    .join('/')
+  const categoryId = getSelectedCategoryId(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
+  const categoryPathNames = getSelectedCategoryPathNames(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
+  const selectedVarietyOption = varietyOptions.value.find(option => option.value === selectedVariety.value)
 
-  if (selectedTop.value !== ALL_VALUE)
-    query.topCategory = selectedTop.value
-  if (categoryPath)
-    query.categoryPath = categoryPath
-  if (selectedVariety.value !== ALL_VALUE)
-    query.varietyCode = selectedVariety.value
+  if (categoryId) {
+    query.categoryId = categoryId
+    query.includeDescendants = true
+  }
+  else if (categoryPathNames.length > 0) {
+    query.topCategory = categoryPathNames[0]
+    if (categoryPathNames.length > 1)
+      query.categoryPath = categoryPathNames.slice(1).join('/')
+  }
+  if (selectedVariety.value !== ALL_VALUE) {
+    if (selectedVarietyOption?.varietyId)
+      query.varietyId = selectedVarietyOption.varietyId
+    else if (selectedVarietyOption?.varietyCode)
+      query.varietyCode = selectedVarietyOption.varietyCode
+    else
+      query.varietyId = selectedVariety.value
+  }
   if (appliedSearchQuery.value)
     query.keyword = appliedSearchQuery.value
 
@@ -139,7 +164,8 @@ function selectCategory(value: string) {
   next[step] = value
   selectedCategoryPath.value = next
   selectedVariety.value = ALL_VALUE
-  if (value !== ALL_VALUE && step < categoryLevelOptions.value.length - 1)
+  const nextLevels = getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, next)
+  if (value !== ALL_VALUE && step < nextLevels.length - 1)
     categoryStep.value = step + 1
   loadResults()
 }
@@ -260,20 +286,20 @@ function goReport() {
   uni.navigateTo({ url: '/pages/report/create' })
 }
 
-function formatTopOption(option: FilterOption): FilterOption {
+function formatTopOption(option: CatalogFilterOption): CatalogFilterOption {
   return {
     ...option,
     label: option.value === ALL_VALUE ? '全部' : option.label,
   }
 }
 
-function formatCategoryOption(option: FilterOption): FilterOption {
+function formatCategoryOption(option: CatalogFilterOption): CatalogFilterOption {
   if (option.value === ALL_VALUE)
     return { ...option, label: '全部' }
   return option
 }
 
-function formatVarietyOption(option: FilterOption): FilterOption {
+function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   if (option.value === ALL_VALUE)
     return { ...option, label: '全部' }
   return {

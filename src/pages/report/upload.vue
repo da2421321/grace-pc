@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, onMounted, ref } from 'vue'
-import { createMyReport } from '@/data/reports'
+import { submitMyReport } from '@/data/reports'
 
 const categoryInfo = ref('')
 const varietyInfo = ref('')
@@ -90,7 +90,7 @@ async function submit() {
   submitting.value = true
   uni.showLoading({ title: '提交中...', mask: true })
   try {
-    await createMyReport({
+    await submitMyReport({
       imageId: imageId.value,
       category: categoryInfo.value,
       variety: varietyInfo.value,
@@ -98,6 +98,12 @@ async function submit() {
       description: description.value,
     })
     uni.navigateTo({ url: '/pages/report/success' })
+  }
+  catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '提交失败，请稍后重试',
+      icon: 'none',
+    })
   }
   finally {
     submitting.value = false
