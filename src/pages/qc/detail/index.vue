@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { fetchQualityImages, getFullCategoryPath, type QualityImageItem } from '@/data/qc'
+import { fetchQualityImageDetail, getFullCategoryPath, type QualityImageItem } from '@/data/qc'
 
 const detailItem = ref<QualityImageItem>()
 const navBarHeight = ref(44)
@@ -32,8 +32,7 @@ onLoad(async (query = {}) => {
   }
 
   try {
-    const response = await fetchQualityImages()
-    detailItem.value = response.items.find(item => item.id === id)
+    detailItem.value = await fetchQualityImageDetail(id)
   }
   finally {
     loading.value = false

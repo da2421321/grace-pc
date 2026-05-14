@@ -469,7 +469,7 @@ function cleanQualityImageQuery(query?: QualityImageQuery): QualityImageQuery | 
 
   const clean: QualityImageQuery = {}
   for (const [key, value] of Object.entries(query) as Array<[keyof QualityImageQuery, QualityImageQuery[keyof QualityImageQuery]]>) {
-    if (value === undefined || value === null || value === '' || value === ALL_VALUE)
+    if (isEmptyQueryValue(String(key), value))
       continue
     clean[key] = value as never
   }
@@ -477,7 +477,7 @@ function cleanQualityImageQuery(query?: QualityImageQuery): QualityImageQuery | 
 }
 
 function cleanCategoryQuery(query?: CategoryQuery): CategoryQuery | undefined {
-  if (!query || query.parentId === undefined || query.parentId === null || query.parentId === '' || query.parentId === ALL_VALUE)
+  if (!query || isEmptyQueryValue('parentId', query.parentId))
     return undefined
   return { parentId: query.parentId }
 }
@@ -488,11 +488,21 @@ function cleanVarietyQuery(query?: VarietyQuery): VarietyQuery | undefined {
 
   const clean: VarietyQuery = {}
   for (const [key, value] of Object.entries(query) as Array<[keyof VarietyQuery, VarietyQuery[keyof VarietyQuery]]>) {
-    if (value === undefined || value === null || value === '' || value === ALL_VALUE)
+    if (isEmptyQueryValue(String(key), value))
       continue
     clean[key] = value as never
   }
   return Object.keys(clean).length ? clean : undefined
+}
+
+function isEmptyQueryValue(key: string, value: unknown) {
+  if (value === undefined || value === null || value === ALL_VALUE)
+    return true
+  if (typeof value === 'string' && value.trim() === '')
+    return true
+  if (['categoryId', 'parentId', 'varietyId'].includes(key) && String(value).trim() === '0')
+    return true
+  return false
 }
 
 function filterMockItems(query?: QualityImageQuery) {

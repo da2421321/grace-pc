@@ -4,14 +4,12 @@ import { onLoad } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
   fetchCategories,
-  fetchCategoryTree,
   fetchQualityImages,
   fetchVarieties,
   findCategoryByValue,
   getCategoryLevelOptionsFromCatalog,
   getFullCategoryPath,
   getSelectedCategoryId,
-  getSelectedCategoryPathNames,
   getTopCategoryOptionsFromCatalog,
   getVarietyOptionsFromCatalog,
   type CatalogFilterOption,
@@ -21,7 +19,7 @@ import {
 } from '@/data/qc'
 
 interface ContentChipOption extends CatalogFilterOption {
-  kind: 'top' | 'variety'
+  kind: 'variety'
 }
 
 const statusBarHeight = ref(44)
@@ -41,7 +39,10 @@ let queryRequestId = 0
 const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(catalog.value.categories))
 const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
 const categoryLevelOptions = computed(() => {
-  return getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
+  const levels = selectedTop.value === ALL_VALUE
+    ? []
+    : getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
+  return levels.length > 0 ? levels : [[{ value: ALL_VALUE, label: '全部' }]]
 })
 const safeCategoryStep = computed(() => Math.min(categoryStep.value, Math.max(0, categoryLevelOptions.value.length - 1)))
 const currentLevelOptions = computed(() => categoryLevelOptions.value[safeCategoryStep.value] ?? [])
@@ -56,14 +57,6 @@ const varietyOptions = computed(() => {
   )
 })
 const contentChips = computed<ContentChipOption[]>(() => {
-  const hasCategoryFilter = selectedCategoryPath.value.some(value => value && value !== ALL_VALUE)
-  if (selectedTop.value === ALL_VALUE && !hasCategoryFilter) {
-    return topCategoryOptions.value.map(option => ({
-      ...formatTopOption(option),
-      kind: 'top',
-    }))
-  }
-
   return varietyOptions.value.map(option => ({
     ...formatVarietyOption(option),
     kind: 'variety',
@@ -85,11 +78,12 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const [categories, imageResponse] = await Promise.all([
-      fetchCategoryTree(),
+    const [categoryResponse, varietyResponse, imageResponse] = await Promise.all([
+      fetchCategories(),
+      fetchVarieties({ pageNum: 1, pageSize: 100 }),
       fetchQualityImages({ pageNum: 1, pageSize: 20 }),
     ])
-    catalog.value = { categories, varieties: [] }
+    catalog.value = { categories: categoryResponse.items, varieties: varietyResponse.items }
     items.value = imageResponse.items
   }
   catch (error) {
@@ -129,13 +123,11 @@ function buildQueryParams(): QualityImageQuery {
 
   if (categoryId)
     query.categoryId = categoryId
-  if (selectedVariety.value !== ALL_VALUE) {
+  if (selectedVariety.value !== ALL_VALUE && selectedVarietyOption) {
     if (selectedVarietyOption?.varietyId)
       query.varietyId = selectedVarietyOption.varietyId
     else if (selectedVarietyOption?.varietyCode)
       query.varietyCode = selectedVarietyOption.varietyCode
-    else
-      query.varietyId = selectedVariety.value
   }
   if (appliedSearchQuery.value)
     query.keyword = appliedSearchQuery.value
@@ -145,11 +137,13 @@ function buildQueryParams(): QualityImageQuery {
 
 async function ensureCategoryChildren(value: string) {
   const node = findCategoryByValue(catalog.value.categories, value)
-  if (!node?.id || !node.hasChildren || node.children.length > 0)
+  if (!node?.id || node.leaf || node.children.length > 0)
     return
 
   const response = await fetchCategories({ parentId: node.id })
   node.children = response.items
+  node.hasChildren = response.items.length > 0
+  node.leaf = response.items.length === 0
   catalog.value = {
     ...catalog.value,
     categories: [...catalog.value.categories],
@@ -158,18 +152,23 @@ async function ensureCategoryChildren(value: string) {
 
 async function refreshVarietiesForSelection() {
   const categoryId = getSelectedCategoryId(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
-  if (!categoryId) {
-    catalog.value = { ...catalog.value, varieties: [] }
-    return
-  }
-
   const response = await fetchVarieties({
-    categoryId,
+    categoryId: categoryId || undefined,
     keyword: appliedSearchQuery.value || undefined,
     pageNum: 1,
     pageSize: 100,
   })
   catalog.value = { ...catalog.value, varieties: response.items }
+  if (selectedVariety.value !== ALL_VALUE) {
+    const stillAvailable = getVarietyOptionsFromCatalog(
+      response.items,
+      selectedTop.value,
+      selectedCategoryPath.value,
+      catalog.value.categories,
+    ).some(option => option.value === selectedVariety.value)
+    if (!stillAvailable)
+      selectedVariety.value = ALL_VALUE
+  }
 }
 
 async function applySearch() {
@@ -183,7 +182,8 @@ async function selectTop(value: string) {
   selectedCategoryPath.value = []
   selectedVariety.value = ALL_VALUE
   categoryStep.value = 0
-  await ensureCategoryChildren(value)
+  if (value !== ALL_VALUE)
+    await ensureCategoryChildren(value)
   await refreshVarietiesForSelection()
   await loadResults()
 }
@@ -191,10 +191,12 @@ async function selectTop(value: string) {
 async function selectCategory(value: string) {
   const step = safeCategoryStep.value
   const next = selectedCategoryPath.value.slice(0, step)
-  next[step] = value
+  if (value !== ALL_VALUE)
+    next[step] = value
   selectedCategoryPath.value = next
   selectedVariety.value = ALL_VALUE
-  await ensureCategoryChildren(value)
+  if (value !== ALL_VALUE)
+    await ensureCategoryChildren(value)
   const nextLevels = getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, next)
   if (value !== ALL_VALUE && step < nextLevels.length - 1)
     categoryStep.value = step + 1
@@ -206,7 +208,7 @@ async function goBackCategoryLevel() {
   if (categoryStep.value <= 0)
     return
   const nextStep = categoryStep.value - 1
-  selectedCategoryPath.value = selectedCategoryPath.value.slice(0, nextStep)
+  selectedCategoryPath.value = selectedCategoryPath.value.slice(0, nextStep + 1)
   selectedVariety.value = ALL_VALUE
   categoryStep.value = nextStep
   await refreshVarietiesForSelection()
@@ -219,16 +221,10 @@ async function selectVariety(value: string) {
 }
 
 function isContentChipActive(option: ContentChipOption) {
-  return option.kind === 'top'
-    ? option.value === selectedTop.value
-    : option.value === selectedVariety.value
+  return option.value === selectedVariety.value
 }
 
 function selectContentChip(option: ContentChipOption) {
-  if (option.kind === 'top') {
-    selectTop(option.value)
-    return
-  }
   selectVariety(option.value)
 }
 
@@ -459,7 +455,9 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
             hover-class="none"
             @click="selectCategory(option.value)"
           >
-            {{ option.label }}
+            <text class="category-label">
+              {{ option.label }}
+            </text>
           </button>
         </scroll-view>
 
@@ -837,15 +835,16 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   min-height: 1094rpx;
   flex-shrink: 0;
   overflow: hidden;
-  background: #fff url('/static/images/figma/home/side-menu-bg.svg') left top / 180rpx 1094rpx no-repeat;
+  background: #f7f7f7;
 }
 
 .category-item {
   position: relative;
-  z-index: 1;
+  z-index: 0;
   display: block;
   width: 100%;
   height: 100rpx;
+  box-sizing: border-box;
   margin: 0;
   padding: 0 20rpx 0 66rpx;
   border-radius: 0;
@@ -859,7 +858,25 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .category-item-active {
   background: transparent;
-  border-radius: 0;
+  color: #25262b;
+  font-weight: 700;
+}
+
+.category-item-active::before {
+  position: absolute;
+  z-index: 0;
+  left: 20rpx;
+  right: 0;
+  top: 6rpx;
+  bottom: 6rpx;
+  border-radius: 24rpx 0 0 24rpx;
+  background: #fff;
+  content: '';
+}
+
+.category-label {
+  position: relative;
+  z-index: 1;
 }
 
 .category-back {
