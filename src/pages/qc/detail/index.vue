@@ -309,7 +309,7 @@ function showSaveFailed(imageUrl: string) {
   position: relative;
   z-index: 2;
   min-height: 633rpx;
-  margin-top: -1rpx;
+  margin-top: -40rpx;
   box-sizing: border-box;
   padding: 0 50rpx;
   border-radius: 40rpx 40rpx 0 0;
