@@ -403,9 +403,15 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 <template>
   <view class="home-page">
+    <image
+      class="bg-header"
+      src="/static/images/figma/mine/mine-bg.svg"
+      mode="scaleToFill"
+    />
+
     <view
       class="hero"
-      :style="{ paddingTop: `${statusBarHeight}px` }"
+      :style="{ '--status-bar-height': `${statusBarHeight}px` }"
     >
       <view class="hero-main">
         <view class="brand-copy">
@@ -732,27 +738,39 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+.bg-header {
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: 464rpx;
+}
+
 .hero {
   position: relative;
-  height: 416rpx;
+  z-index: 1;
+  height: 396rpx;
   box-sizing: border-box;
   overflow: hidden;
-  padding-right: 50rpx;
-  padding-left: 50rpx;
-  background: linear-gradient(186deg, rgba(199, 247, 112, 0.5) 0%, #c7f770 93%);
+  background: transparent;
 }
 
 .hero-main {
-  position: relative;
-  height: 226rpx;
-  margin-top: 16rpx;
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .brand-copy {
   position: absolute;
   z-index: 2;
-  left: 22rpx;
-  top: 66rpx;
+  left: 72rpx;
+  top: calc(var(--status-bar-height, 44px) + 95rpx);
 }
 
 .brand-title,
@@ -777,22 +795,25 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .hero-visual {
   position: absolute;
-  right: 28rpx;
-  top: -18rpx;
-  width: 284rpx;
-  height: 284rpx;
+  right: 72rpx;
+  top: calc(var(--status-bar-height, 44px) - 8rpx);
+  width: 303rpx;
+  height: 303rpx;
 }
 
 .search-row {
-  position: relative;
+  position: absolute;
   z-index: 2;
   display: flex;
-  width: 650rpx;
+  left: 50rpx;
+  right: 50rpx;
+  top: calc(var(--status-bar-height, 44px) + 238rpx);
+  width: auto;
   height: 70rpx;
   align-items: center;
   box-sizing: border-box;
-  margin: 0 auto;
-  padding: 0 6rpx 0 28rpx;
+  margin: 0;
+  padding: 0 11rpx 0 34rpx;
   border: 2rpx solid #92e616;
   border-radius: 20rpx;
   background: #fff;
@@ -803,7 +824,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   width: 32rpx;
   height: 32rpx;
   flex-shrink: 0;
-  margin-right: 18rpx;
+  margin-right: 24rpx;
 }
 
 .search-icon::before {
@@ -857,7 +878,9 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .body-shell {
-  height: calc(100vh - var(--window-bottom, 0px) - 416rpx);
+  position: relative;
+  z-index: 1;
+  height: calc(100vh - var(--window-bottom, 0px) - 396rpx);
   overflow: hidden;
   border-radius: 30rpx 30rpx 0 0;
   background: #fff;
@@ -1221,6 +1244,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   height: 90rpx;
   align-items: center;
   justify-content: center;
+  line-height: 1;
   margin: 0;
   padding: 0;
   border: 4rpx solid #fff;
@@ -1230,10 +1254,16 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .fab-plus {
+  display: flex;
+  width: 48rpx;
+  height: 48rpx;
+  align-items: center;
+  justify-content: center;
   color: #fff;
   font-size: 74rpx;
   font-weight: 300;
-  line-height: 80rpx;
+  line-height: 48rpx;
+  transform: translateY(-3rpx);
 }
 
 .search-button::after,

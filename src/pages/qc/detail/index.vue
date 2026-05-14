@@ -275,7 +275,7 @@ function showSaveFailed(imageUrl: string) {
   height: 22rpx;
   border-bottom: 4rpx solid #fff;
   border-left: 4rpx solid #fff;
-  transform: rotate(45deg);
+  transform: translateX(4rpx) rotate(45deg);
 }
 
 .detail-product-scene {

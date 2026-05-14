@@ -218,8 +218,8 @@ function retryLoad() {
   loadOptions()
 }
 
-function getSectionTitle(levelIndex: number) {
-  return levelIndex === 0 ? '请选择二级品类' : `请选择第 ${levelIndex + 2} 级品类`
+function getSectionTitle(_levelIndex: number) {
+  return '请选择品类'
 }
 
 function formatVarietyLabel(option: CatalogFilterOption) {
@@ -253,7 +253,7 @@ function formatVarietyLabel(option: CatalogFilterOption) {
       <template v-else>
         <view class="section">
           <view class="section-title-wrap">
-            <text class="section-title">请选择一级品类</text>
+            <text class="section-title">请选择品类</text>
             <view class="section-underline" />
           </view>
           <view class="tag-list">

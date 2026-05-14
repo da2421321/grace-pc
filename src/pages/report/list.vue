@@ -303,6 +303,7 @@ function displaySubmittedAt(value: string) {
 
 .status {
   position: absolute;
+  z-index: 2;
   top: 95rpx;
   right: 30rpx;
   width: 116rpx;

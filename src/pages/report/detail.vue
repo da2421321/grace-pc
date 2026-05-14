@@ -229,7 +229,7 @@ function statusClass(status: ReportProcessStatus) {
   height: 22rpx;
   border-bottom: 4rpx solid #fff;
   border-left: 4rpx solid #fff;
-  transform: rotate(45deg);
+  transform: translateX(4rpx) rotate(45deg);
 }
 
 .report-product-scene {
@@ -261,6 +261,7 @@ function statusClass(status: ReportProcessStatus) {
 
 .report-status-pill {
   position: absolute;
+  z-index: 4;
   right: 50rpx;
   bottom: 33rpx;
   width: 116rpx;
