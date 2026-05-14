@@ -6,7 +6,6 @@ export interface MyReportRecord {
   id: string
   submitter: string
   submittedAt: string
-  imageId?: string
   category: string
   variety: string
   imageCaption: string
@@ -16,7 +15,6 @@ export interface MyReportRecord {
 }
 
 export interface CreateMyReportInput {
-  imageId?: string | number
   imageUrl?: string
   category?: string
   variety?: string
@@ -59,7 +57,7 @@ export async function createMyReport(input: CreateMyReportInput): Promise<MyRepo
 
 export async function submitMyReport(input: CreateMyReportInput): Promise<MyReportRecord> {
   const imageUrl = input.imageUrl?.trim()
-  if (!imageUrl && !input.imageId)
+  if (!imageUrl)
     throw new Error('请上传品检图')
 
   const description = input.description.trim()
@@ -67,8 +65,7 @@ export async function submitMyReport(input: CreateMyReportInput): Promise<MyRepo
     throw new Error('请输入问题描述')
 
   const response = await apis.zjQc.createReport({
-    ...(input.imageId ? { imageId: normalizeImageId(input.imageId) } : {}),
-    ...(imageUrl ? { imageUrl } : {}),
+    imageUrl,
     ...(input.category ? { category: input.category.trim() } : {}),
     ...(input.variety ? { variety: input.variety.trim() } : {}),
     ...(input.categoryId ? { categoryId: input.categoryId } : {}),
@@ -102,7 +99,6 @@ function normalizeReport(raw: Record<string, unknown>, fallback?: CreateMyReport
     id: toStringValue(raw.reportId || raw.id),
     submitter: toStringValue(raw.username || raw.submitter),
     submittedAt: toStringValue(raw.createTime || raw.submittedAt),
-    imageId: toStringValue(raw.imageId || fallback?.imageId) || undefined,
     category: toStringValue(raw.category) || fallback?.category?.trim() || '',
     variety: toStringValue(raw.variety) || fallback?.variety?.trim() || '',
     imageCaption: toStringValue(raw.imageCaption),
@@ -116,17 +112,6 @@ function toStringValue(value: unknown) {
   if (value === undefined || value === null)
     return ''
   return String(value)
-}
-
-function normalizeImageId(imageId: string | number) {
-  if (typeof imageId === 'number')
-    return imageId
-
-  const trimmed = imageId.trim()
-  if (/^\d+$/.test(trimmed))
-    return Number(trimmed)
-
-  return trimmed
 }
 
 function normalizeApiLongId(id: string | number): number | `${number}` | undefined {

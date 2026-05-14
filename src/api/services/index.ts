@@ -318,17 +318,12 @@ export interface PcQualityVarietyOption {
 export interface PcQualityVarietyResponse extends PcQualityPageResponse<PcQualityVarietyOption> {}
 
 export interface PcQualityReportCreateRequest {
-  imageId?: string | number
   imageUrl?: string
   category?: string
   variety?: string
   categoryId?: string | number
   varietyId?: string | number
   remark: string
-}
-
-export interface PcQualityReportStatusRequest {
-  status: number
 }
 
 export type ApiLongId = number | `${number}`
@@ -338,7 +333,6 @@ export interface PcQualityReportItem {
   reportId?: string | number
   userId?: string | number
   username?: string
-  imageId?: string | number
   imageUrl?: string
   imagePath?: string
   categoryId?: string | number
@@ -617,18 +611,6 @@ export class Api<SecurityDataType extends unknown> {
       this.http.request<PcQualityReportItem>({
         path: `/front/zj/qc/reports/${reportId}`,
         method: 'GET',
-        ...params,
-      }),
-    updateReportStatus: (
-      reportId: ApiLongId,
-      data: PcQualityReportStatusRequest,
-      params: RequestParams = {},
-    ) =>
-      this.http.request<any>({
-        path: `/front/zj/qc/reports/${reportId}/status`,
-        method: 'PUT',
-        body: data,
-        type: ContentType.Json,
         ...params,
       }),
   }

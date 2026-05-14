@@ -119,10 +119,28 @@ function saveImageFile(filePath: string) {
     success: () => {
       uni.showToast({ title: '保存成功', icon: 'success' })
     },
-    fail: () => {
+    fail: (error) => {
+      if (isUserCancelSave(error))
+        return
+
       uni.showToast({ title: '保存失败，请长按图片保存', icon: 'none' })
     },
   })
+}
+
+function isUserCancelSave(error: unknown) {
+  const errMsg = getErrorMessage(error).toLowerCase()
+  return errMsg.includes('cancel') || errMsg.includes('deny') || errMsg.includes('authorize')
+}
+
+function getErrorMessage(error: unknown) {
+  if (typeof error === 'string')
+    return error
+
+  if (error && typeof error === 'object' && 'errMsg' in error)
+    return String((error as { errMsg?: unknown }).errMsg || '')
+
+  return ''
 }
 
 function showSaveFailed(imageUrl: string) {
