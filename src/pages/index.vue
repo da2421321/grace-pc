@@ -14,6 +14,7 @@ import {
   getVarietyOptionsFromCatalog,
   type CatalogFilterOption,
   type CategoryVarietyResponse,
+  type QualityImageApiResponse,
   type QualityImageItem,
   type QualityImageQuery,
 } from '@/data/qc'
@@ -24,7 +25,9 @@ interface ContentChipOption extends CatalogFilterOption {
 
 const statusBarHeight = ref(44)
 const loading = ref(true)
+const loadingMore = ref(false)
 const loadError = ref('')
+const loadMoreError = ref('')
 const items = ref<QualityImageItem[]>([])
 const catalog = ref<CategoryVarietyResponse>({ categories: [], varieties: [] })
 const searchDraft = ref('')
@@ -35,6 +38,9 @@ const selectedVariety = ref(ALL_VALUE)
 const categoryStep = ref(0)
 const detailItem = ref<QualityImageItem>()
 let queryRequestId = 0
+const PAGE_SIZE = 20
+const currentPage = ref(1)
+const hasMore = ref(false)
 
 const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(catalog.value.categories))
 const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
@@ -75,37 +81,28 @@ onLoad(() => {
 })
 
 async function load() {
+  const requestId = ++queryRequestId
   loading.value = true
   loadError.value = ''
+  loadMoreError.value = ''
   try {
     const [categoryResponse, varietyResponse, imageResponse] = await Promise.all([
       fetchCategories(),
       fetchVarieties({ pageNum: 1, pageSize: 100 }),
-      fetchQualityImages({ pageNum: 1, pageSize: 20 }),
+      fetchQualityImages({ pageNum: 1, pageSize: PAGE_SIZE }),
     ])
+    if (requestId !== queryRequestId)
+      return
     catalog.value = { categories: categoryResponse.items, varieties: varietyResponse.items }
     items.value = imageResponse.items
+    currentPage.value = getResponsePageNum(imageResponse, 1)
+    hasMore.value = getResponseHasMore(imageResponse, currentPage.value)
   }
   catch (error) {
+    if (requestId !== queryRequestId)
+      return
     loadError.value = error instanceof Error ? error.message : '加载失败，请稍后重试'
-  }
-  finally {
-    loading.value = false
-  }
-}
-
-async function loadResults() {
-  const requestId = ++queryRequestId
-  loading.value = true
-  loadError.value = ''
-  try {
-    const response = await fetchQualityImages(buildQueryParams())
-    if (requestId === queryRequestId)
-      items.value = response.items
-  }
-  catch (error) {
-    if (requestId === queryRequestId)
-      loadError.value = error instanceof Error ? error.message : '查询失败，请稍后重试'
+    hasMore.value = false
   }
   finally {
     if (requestId === queryRequestId)
@@ -113,10 +110,51 @@ async function loadResults() {
   }
 }
 
-function buildQueryParams(): QualityImageQuery {
+async function loadResults(pageNum = 1, append = false) {
+  if (append) {
+    if (loading.value || loadingMore.value || !hasMore.value)
+      return
+    loadingMore.value = true
+    loadMoreError.value = ''
+  }
+  else {
+    loading.value = true
+    loadError.value = ''
+    loadMoreError.value = ''
+    hasMore.value = false
+  }
+
+  const requestId = ++queryRequestId
+  try {
+    const response = await fetchQualityImages(buildQueryParams(pageNum))
+    if (requestId === queryRequestId) {
+      items.value = append ? [...items.value, ...response.items] : response.items
+      currentPage.value = getResponsePageNum(response, pageNum)
+      hasMore.value = getResponseHasMore(response, currentPage.value)
+    }
+  }
+  catch (error) {
+    if (requestId === queryRequestId && append) {
+      loadMoreError.value = error instanceof Error ? error.message : '加载更多失败，请稍后重试'
+      return
+    }
+    if (requestId === queryRequestId)
+      loadError.value = error instanceof Error ? error.message : '查询失败，请稍后重试'
+  }
+  finally {
+    if (requestId === queryRequestId) {
+      if (append)
+        loadingMore.value = false
+      else
+        loading.value = false
+    }
+  }
+}
+
+function buildQueryParams(pageNum = 1): QualityImageQuery {
   const query: QualityImageQuery = {
-    pageNum: 1,
-    pageSize: 20,
+    pageNum,
+    pageSize: PAGE_SIZE,
   }
   const categoryId = getSelectedCategoryId(catalog.value.categories, selectedTop.value, selectedCategoryPath.value)
   const selectedVarietyOption = varietyOptions.value.find(option => option.value === selectedVariety.value)
@@ -133,6 +171,31 @@ function buildQueryParams(): QualityImageQuery {
     query.keyword = appliedSearchQuery.value
 
   return query
+}
+
+function getResponsePageNum(response: QualityImageApiResponse, fallback: number) {
+  const pageNum = Number(response.pageNum)
+  return Number.isFinite(pageNum) && pageNum > 0 ? pageNum : fallback
+}
+
+function getResponseHasMore(response: QualityImageApiResponse, pageNum: number) {
+  if (typeof response.hasMore === 'boolean')
+    return response.hasMore
+
+  const pages = Number(response.pages)
+  if (Number.isFinite(pages) && pages > 0)
+    return pageNum < pages
+
+  const total = Number(response.total)
+  const pageSize = Number(response.pageSize || PAGE_SIZE)
+  if (Number.isFinite(total) && total >= 0 && Number.isFinite(pageSize) && pageSize > 0)
+    return pageNum * pageSize < total
+
+  return response.items.length >= PAGE_SIZE
+}
+
+async function loadMoreResults() {
+  await loadResults(currentPage.value + 1, true)
 }
 
 async function ensureCategoryChildren(value: string) {
@@ -497,41 +560,66 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
             </text>
           </view>
 
-          <view
+          <scroll-view
             v-else
-            class="image-grid"
+            class="image-grid-scroll"
+            scroll-y
+            :lower-threshold="80"
+            :show-scrollbar="false"
+            @scrolltolower="loadMoreResults"
           >
-            <button
-              v-for="item in filteredItems"
-              :key="item.id"
-              class="image-card"
-              hover-class="none"
-              @click="openDetail(item)"
+            <view class="image-grid">
+              <button
+                v-for="item in filteredItems"
+                :key="item.id"
+                class="image-card"
+                hover-class="none"
+                @click="openDetail(item)"
+              >
+                <view :class="['image-wrap', `tone-${item.placeholderTone || 'green'}`]">
+                  <image
+                    v-if="item.imageUrl"
+                    class="sample-image"
+                    :src="item.imageUrl"
+                    mode="aspectFit"
+                  />
+                  <text
+                    v-else
+                    class="image-caption"
+                  >
+                    {{ item.varietyName }}
+                  </text>
+                </view>
+                <view class="card-body">
+                  <text class="card-title">
+                    {{ getCardDescription(item) }}
+                  </text>
+                  <text class="card-meta">
+                    {{ getCardMeta(item) }}
+                  </text>
+                </view>
+              </button>
+            </view>
+            <view
+              v-if="loadingMore || loadMoreError || !hasMore"
+              class="load-more-state"
             >
-              <view :class="['image-wrap', `tone-${item.placeholderTone || 'green'}`]">
-                <image
-                  v-if="item.imageUrl"
-                  class="sample-image"
-                  :src="item.imageUrl"
-                  mode="aspectFit"
-                />
-                <text
-                  v-else
-                  class="image-caption"
-                >
-                  {{ item.varietyName }}
-                </text>
-              </view>
-              <view class="card-body">
-                <text class="card-title">
-                  {{ getCardDescription(item) }}
-                </text>
-                <text class="card-meta">
-                  {{ getCardMeta(item) }}
-                </text>
-              </view>
-            </button>
-          </view>
+              <text v-if="loadingMore">
+                加载中...
+              </text>
+              <button
+                v-else-if="loadMoreError"
+                class="load-more-retry"
+                hover-class="none"
+                @click.stop="loadMoreResults"
+              >
+                加载失败，点击重试
+              </button>
+              <text v-else>
+                没有更多了
+              </text>
+            </view>
+          </scroll-view>
         </view>
       </view>
     </view>
@@ -769,7 +857,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .body-shell {
-  min-height: calc(100vh - var(--window-bottom, 0px) - 416rpx);
+  height: calc(100vh - var(--window-bottom, 0px) - 416rpx);
   overflow: hidden;
   border-radius: 30rpx 30rpx 0 0;
   background: #fff;
@@ -826,13 +914,15 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .main-panel {
   display: flex;
-  min-height: 1094rpx;
+  height: calc(100% - 113rpx);
+  min-height: 0;
   background: #fff;
 }
 
 .category-side {
   width: 180rpx;
-  min-height: 1094rpx;
+  height: 100%;
+  min-height: 0;
   flex-shrink: 0;
   overflow: hidden;
   background: #f7f7f7;
@@ -886,13 +976,18 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .result-area {
   min-width: 0;
+  height: 100%;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #fff;
 }
 
 .product-filter-scroll {
   width: 100%;
   height: 100rpx;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -974,7 +1069,8 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .empty-state {
   display: flex;
-  min-height: 640rpx;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   padding-top: 112rpx;
@@ -1002,11 +1098,40 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   line-height: 32rpx;
 }
 
+.image-grid-scroll {
+  height: calc(100% - 100rpx);
+  min-height: 0;
+  overflow: hidden;
+}
+
 .image-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 42rpx 24rpx;
   padding: 17rpx 52rpx 44rpx 26rpx;
+}
+
+.load-more-state {
+  display: flex;
+  min-height: 96rpx;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 6rpx 0 28rpx;
+  color: #777978;
+  font-size: 24rpx;
+  line-height: 34rpx;
+}
+
+.load-more-retry {
+  height: 56rpx;
+  margin: 0;
+  padding: 0 28rpx;
+  border-radius: 14rpx;
+  background: #f7f7f7;
+  color: #25262b;
+  font-size: 24rpx;
+  line-height: 56rpx;
 }
 
 .image-card {
@@ -1113,6 +1238,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .search-button::after,
 .retry-button::after,
+.load-more-retry::after,
 .top-tab::after,
 .category-item::after,
 .product-chip::after,

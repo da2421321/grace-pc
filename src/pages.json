@@ -17,7 +17,8 @@
     {
       "path": "pages/report/success",
       "style": {
-        "navigationBarTitleText": "提交成功"
+        "navigationBarTitleText": "图片上报",
+        "navigationStyle": "custom"
       }
     },
     {
@@ -58,7 +59,8 @@
     {
       "path": "pages/login",
       "style": {
-        "navigationBarTitleText": "登录"
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
       }
     },
     {

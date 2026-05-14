@@ -28,19 +28,24 @@ const navMenuHeight = ref(44)
 
 const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(categories.value).filter(option => option.value !== ALL_VALUE))
 const categoryLevelOptions = computed(() => {
+  if (selectedTop.value === ALL_VALUE)
+    return []
   return getCategoryLevelOptionsFromCatalog(categories.value, selectedTop.value, selectedCategoryPath.value)
 })
 const categoryLevelOptionsConcrete = computed(() => {
   return categoryLevelOptions.value.map(level => level.filter(option => option.value !== ALL_VALUE))
 })
 const subCategoriesComplete = computed(() => {
+  if (selectedTop.value === ALL_VALUE)
+    return false
   if (categoryLevelOptionsConcrete.value.length === 0)
-    return selectedTop.value !== ALL_VALUE
+    return true
   return categoryLevelOptionsConcrete.value.every((_, index) => {
     const value = selectedCategoryPath.value[index]
     return Boolean(value && value !== ALL_VALUE)
   })
 })
+const showVarietySection = computed(() => subCategoriesComplete.value)
 const varietyOptions = computed(() => {
   if (!subCategoriesComplete.value)
     return []
@@ -80,7 +85,9 @@ async function loadOptions() {
     const categoryResponse = await fetchCategories()
     categories.value = categoryResponse.items
     varieties.value = []
-    await selectDefaultOptions()
+    selectedTop.value = ALL_VALUE
+    selectedCategoryPath.value = []
+    selectedVariety.value = ALL_VALUE
   }
   catch (error) {
     loadError.value = error instanceof Error ? error.message : '加载品类失败，请稍后重试'
@@ -124,8 +131,8 @@ function cancel() {
 }
 
 function submit() {
-  if (!selectedCategoryLabel.value) {
-    uni.showToast({ title: '请选择品类', icon: 'none' })
+  if (!selectedCategoryLabel.value || !subCategoriesComplete.value) {
+    uni.showToast({ title: '请选择完整品类', icon: 'none' })
     return
   }
 
@@ -157,31 +164,21 @@ function submit() {
   })
 }
 
-async function selectDefaultOptions() {
-  const firstTop = topCategoryOptions.value[0]
-  if (!firstTop)
-    return
-  selectedTop.value = firstTop.value
-  await fillFirstSubCategories(0)
-  await selectFirstVariety()
-}
-
 async function selectTopOption(value: string) {
   selectedTop.value = value
   selectedCategoryPath.value = []
   selectedVariety.value = ALL_VALUE
   await ensureCategoryChildren(value)
-  await fillFirstSubCategories(0)
-  await selectFirstVariety()
+  await refreshVarietiesForSelection()
 }
 
 async function selectCategoryLevel(levelIndex: number, value: string) {
   const next = selectedCategoryPath.value.slice(0, levelIndex)
   next[levelIndex] = value
   selectedCategoryPath.value = next
+  selectedVariety.value = ALL_VALUE
   await ensureCategoryChildren(value)
-  await fillFirstSubCategories(levelIndex + 1)
-  await selectFirstVariety()
+  await refreshVarietiesForSelection()
 }
 
 function selectVarietyOption(value: string) {
@@ -190,41 +187,31 @@ function selectVarietyOption(value: string) {
 
 async function ensureCategoryChildren(value: string) {
   const node = findCategoryByValue(categories.value, value)
-  if (!node?.id || !node.hasChildren || node.children.length > 0)
+  if (!node?.id || node.leaf || node.hasChildren === false || node.children.length > 0)
     return
 
   const response = await fetchCategories({ parentId: node.id })
   node.children = response.items
+  node.hasChildren = response.items.length > 0
+  node.leaf = response.items.length === 0
   categories.value = [...categories.value]
 }
 
-async function fillFirstSubCategories(startIndex: number) {
-  const path = selectedCategoryPath.value.slice(0, startIndex)
-  for (let guard = 0; guard < 12; guard++) {
-    const current = path[path.length - 1] || selectedTop.value
-    await ensureCategoryChildren(current)
-    const levels = getCategoryLevelOptionsFromCatalog(categories.value, selectedTop.value, path)
-    const options = levels[path.length]?.filter(option => option.value !== ALL_VALUE) ?? []
-    if (options.length === 0)
-      break
-    path.push(options[0].value)
-  }
-  selectedCategoryPath.value = path
-}
-
-async function selectFirstVariety() {
+async function refreshVarietiesForSelection() {
   const categoryId = selectedCategoryId.value
-  if (!categoryId) {
+  if (!subCategoriesComplete.value || !categoryId) {
     varieties.value = []
     selectedVariety.value = ALL_VALUE
     return
   }
 
+  varieties.value = []
   const response = await fetchVarieties({ categoryId, pageNum: 1, pageSize: 100 })
   varieties.value = response.items
   const options = getVarietyOptionsFromCatalog(varieties.value, selectedTop.value, selectedCategoryPath.value, categories.value)
     .filter(option => option.value !== ALL_VALUE)
-  selectedVariety.value = options[0]?.value ?? ALL_VALUE
+  if (selectedVariety.value !== ALL_VALUE && !options.some(option => option.value === selectedVariety.value))
+    selectedVariety.value = ALL_VALUE
 }
 
 function retryLoad() {
@@ -304,7 +291,7 @@ function formatVarietyLabel(option: CatalogFilterOption) {
           </view>
         </view>
 
-        <view class="section">
+        <view v-if="showVarietySection" class="section">
           <view class="section-title-wrap">
             <text class="section-title">请选择品种</text>
             <view class="section-underline" />

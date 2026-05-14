@@ -241,10 +241,9 @@ function decodeQueryValue(value: unknown) {
           v-if="previewImageUrl"
           :src="previewImageUrl"
           class="linked-image"
-          mode="aspectFit"
+          mode="scaleToFill"
         />
         <text v-else class="upload-placeholder">点击上传图片</text>
-        <text v-if="previewImageUrl" class="replace-text">重新上传</text>
       </view>
     </view>
 
@@ -329,7 +328,8 @@ function decodeQueryValue(value: unknown) {
 
 .category-info {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  gap: 8rpx;
   padding: 31rpx 50rpx;
 }
 
@@ -342,13 +342,16 @@ function decodeQueryValue(value: unknown) {
 
 .category-value {
   flex: 1;
+  min-width: 0;
   color: #25262b;
   font-size: 26rpx;
   font-weight: 400;
   line-height: 40rpx;
+  word-break: break-all;
 }
 
 .modify-btn {
+  flex: 0 0 107rpx;
   width: 107rpx;
   height: 36rpx;
   border-radius: 18rpx;
@@ -359,7 +362,7 @@ function decodeQueryValue(value: unknown) {
   line-height: 36rpx;
   text-align: center;
   border: none;
-  margin: 0;
+  margin: 2rpx 0 0;
   padding: 0;
 }
 
@@ -412,6 +415,8 @@ function decodeQueryValue(value: unknown) {
 }
 
 .upload-placeholder {
+  position: relative;
+  z-index: 1;
   color: #777978;
   font-size: 30rpx;
   font-weight: 500;
@@ -419,23 +424,10 @@ function decodeQueryValue(value: unknown) {
 }
 
 .linked-image {
+  display: block;
   width: 100%;
   height: 100%;
-}
-
-.replace-text {
-  position: absolute;
-  right: 22rpx;
-  bottom: 22rpx;
-  min-width: 120rpx;
-  height: 52rpx;
-  padding: 0 24rpx;
-  border-radius: 26rpx;
-  background: rgba(37, 38, 43, 0.76);
-  color: #fff;
-  font-size: 24rpx;
-  line-height: 52rpx;
-  text-align: center;
+  object-fit: fill;
 }
 
 .description-section {

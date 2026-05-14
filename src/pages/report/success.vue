@@ -1,60 +1,117 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
-let timer: ReturnType<typeof setTimeout> | undefined
+const navBarHeight = ref(44)
+const navMenuTop = ref(0)
+const navMenuHeight = ref(44)
+const countdown = ref(2)
+
+let timer: ReturnType<typeof setInterval> | undefined
+
+const navBarStyle = computed(() => ({
+  height: `${navBarHeight.value}px`,
+}))
+const navRowStyle = computed(() => ({
+  top: `${navMenuTop.value}px`,
+  height: `${navMenuHeight.value}px`,
+  lineHeight: `${navMenuHeight.value}px`,
+}))
 
 onMounted(() => {
-  timer = setTimeout(() => {
-    uni.switchTab({ url: '/pages/index' })
-  }, 2000)
+  initNavBar()
+  startCountdown()
 })
 
 onUnmounted(() => {
-  if (timer)
-    clearTimeout(timer)
+  clearReturnTimer()
 })
 
+function initNavBar() {
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    const statusBarHeight = systemInfo.statusBarHeight || 0
+
+    // #ifdef MP-WEIXIN
+    const menuButton = uni.getMenuButtonBoundingClientRect()
+    const navGap = Math.max(menuButton.top - statusBarHeight, 0)
+    navMenuTop.value = menuButton.top
+    navMenuHeight.value = menuButton.height
+    navBarHeight.value = menuButton.bottom + navGap
+    return undefined
+    // #endif
+
+    navMenuTop.value = statusBarHeight
+    navMenuHeight.value = 44
+    navBarHeight.value = statusBarHeight + 44
+  }
+  catch {
+    navMenuTop.value = 0
+    navMenuHeight.value = 44
+    navBarHeight.value = 44
+  }
+}
+
+function clearReturnTimer() {
+  if (!timer)
+    return
+  clearInterval(timer)
+  timer = undefined
+}
+
+function startCountdown() {
+  countdown.value = 2
+  clearReturnTimer()
+  timer = setInterval(() => {
+    if (countdown.value <= 1) {
+      goHome()
+      return
+    }
+
+    countdown.value -= 1
+  }, 1000)
+}
+
+function goBack() {
+  goHome()
+}
+
 function goHome() {
-  if (timer)
-    clearTimeout(timer)
+  clearReturnTimer()
   uni.switchTab({ url: '/pages/index' })
 }
 
 function goReports() {
-  if (timer)
-    clearTimeout(timer)
+  clearReturnTimer()
   uni.redirectTo({ url: '/pages/report/list' })
 }
 </script>
 
 <template>
   <view class="success-page">
-    <view class="success-card">
-      <view class="check-circle">
-        ✓
+    <view class="nav-bar" :style="navBarStyle">
+      <view class="nav-row" :style="navRowStyle">
+        <view class="nav-back" @click="goBack">
+          <view class="back-icon" />
+        </view>
+        <text class="nav-title">图片上报</text>
       </view>
-      <text class="success-title">
-        提交成功
-      </text>
-      <text class="success-desc">
-        上报已保存，可在“我的 - 我的上报记录”中查看处理状态。
-      </text>
-      <text class="redirect-text">
-        2 秒后自动返回首页
-      </text>
-      <view class="success-actions">
-        <button
-          class="secondary-button"
-          @click="goReports"
-        >
-          查看记录
-        </button>
-        <button
-          class="primary-button"
-          @click="goHome"
-        >
-          返回首页
-        </button>
+    </view>
+
+    <view class="success-content">
+      <image
+        class="success-check"
+        src="/static/images/figma/report/success-check.svg"
+        mode="aspectFit"
+      />
+
+      <view class="success-message">
+        <text class="success-title">提交成功！上报已保存。</text>
+        <view class="success-desc">
+          <text>可在「</text>
+          <text class="success-highlight" @click.stop="goReports">我的-我的上报记录</text>
+          <text>」中查看。</text>
+        </view>
+        <text class="redirect-text">{{ countdown }}秒后自动返回首页...</text>
       </view>
     </view>
   </view>
@@ -62,91 +119,108 @@ function goReports() {
 
 <style scoped>
 .success-page {
-  display: flex;
   min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  padding: 48rpx;
-  background: linear-gradient(180deg, #2e8b57 0%, #6bc49a 18%, #bfead3 42%, #e8f5e9 58%, #f2fbf5 72%, #fff 100%);
+  box-sizing: border-box;
+  background: #fff;
+  color: #25262b;
+  overflow-x: hidden;
 }
 
-.success-card {
-  display: flex;
+.nav-bar {
+  position: relative;
   width: 100%;
+  background: #fff;
+}
+
+.nav-row {
+  position: absolute;
+  left: 0;
+  right: 220rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+}
+
+.nav-back {
+  flex: 0 0 86rpx;
+  width: 86rpx;
+  height: 88rpx;
+  margin-left: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-icon {
+  width: 24rpx;
+  height: 24rpx;
+  border-left: 4rpx solid #25262b;
+  border-bottom: 4rpx solid #25262b;
+  transform: rotate(45deg);
+}
+
+.nav-title {
+  color: #1a2f4d;
+  font-size: 36rpx;
+  font-weight: 400;
+  line-height: 50rpx;
+}
+
+.success-content {
+  display: flex;
   flex-direction: column;
   align-items: center;
-  border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 56rpx 36rpx 40rpx;
-  box-shadow: 0 10rpx 38rpx rgba(0, 0, 0, 0.08);
+  padding-top: 119rpx;
   text-align: center;
 }
 
-.check-circle {
-  display: flex;
-  width: 120rpx;
-  height: 120rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #2e8b57;
-  box-shadow: 0 8rpx 24rpx rgba(46, 139, 87, 0.35);
-  color: #fff;
-  font-size: 70rpx;
-  line-height: 1;
+.success-check {
+  width: 180rpx;
+  height: 180rpx;
+}
+
+.success-message {
+  margin-top: 52rpx;
 }
 
 .success-title {
-  margin-top: 30rpx;
-  color: #1a1f1c;
-  font-size: 36rpx;
-  font-weight: 800;
+  display: block;
+  color: #25262b;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 50rpx;
+  white-space: nowrap;
 }
 
 .success-desc {
-  margin-top: 18rpx;
-  color: #5c6d66;
+  display: flex;
+  height: 50rpx;
+  align-items: center;
+  justify-content: center;
+  color: #25262b;
   font-size: 26rpx;
-  line-height: 1.65;
+  font-weight: 400;
+  line-height: 50rpx;
+  white-space: nowrap;
+}
+
+.success-highlight {
+  display: inline-flex;
+  height: 38rpx;
+  align-items: center;
+  background: rgba(146, 230, 22, 0.3);
+  color: #25262b;
+  line-height: 38rpx;
 }
 
 .redirect-text {
-  margin-top: 24rpx;
-  color: #8a9690;
-  font-size: 24rpx;
-}
-
-.success-actions {
-  display: flex;
-  width: 100%;
-  gap: 14rpx;
-  margin-top: 34rpx;
-}
-
-.secondary-button,
-.primary-button {
-  flex: 1;
-  height: 76rpx;
-  margin: 0;
-  border-radius: 18rpx;
-  font-size: 27rpx;
-  font-weight: 700;
-  line-height: 76rpx;
-}
-
-.secondary-button {
-  border: 1rpx solid #cfe9dc;
-  background: #fff;
-  color: #2e8b57;
-}
-
-.primary-button {
-  background: #2e8b57;
-  color: #fff;
-}
-
-.secondary-button::after,
-.primary-button::after {
-  border: 0;
+  display: block;
+  margin-top: 40rpx;
+  color: #777978;
+  font-size: 26rpx;
+  font-weight: 400;
+  line-height: 40rpx;
+  white-space: nowrap;
 }
 </style>
