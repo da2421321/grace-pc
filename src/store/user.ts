@@ -14,6 +14,7 @@ export const useUserStore = defineStore(
     const id = ref('')
     const name = ref('')
     const avatar = ref('')
+    const userType = ref('')
     const roles = ref<string[]>([])
     const permissions = ref<string[]>([])
 
@@ -49,6 +50,7 @@ export const useUserStore = defineStore(
       id.value = userId
       name.value = userName
       avatar.value = avatarUrl
+      userType.value = String(user?.userType ?? '')
       return res
     }
 
@@ -74,6 +76,7 @@ export const useUserStore = defineStore(
       id.value = ''
       name.value = ''
       avatar.value = ''
+      userType.value = ''
     }
 
     function hasPermission(permission: string) {
@@ -115,6 +118,7 @@ export const useUserStore = defineStore(
       id,
       name,
       avatar,
+      userType,
       roles,
       permissions,
       isLoggedIn,
@@ -134,7 +138,7 @@ export const useUserStore = defineStore(
   {
     persist: {
       key: 'user-store',
-      pick: ['token', 'id', 'name', 'avatar', 'roles', 'permissions'],
+      pick: ['token', 'id', 'name', 'avatar', 'userType', 'roles', 'permissions'],
     },
   },
 )

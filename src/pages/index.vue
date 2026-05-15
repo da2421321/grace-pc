@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onResize } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
   fetchCategories,
@@ -18,11 +18,13 @@ import {
   type QualityImageItem,
   type QualityImageQuery,
 } from '@/data/qc'
+import { useUserStore } from '@/store/user'
 
 interface ContentChipOption extends CatalogFilterOption {
   kind: 'variety'
 }
 
+const userStore = useUserStore()
 const statusBarHeight = ref(44)
 const loading = ref(true)
 const loadingMore = ref(false)
@@ -41,6 +43,20 @@ let queryRequestId = 0
 const PAGE_SIZE = 20
 const currentPage = ref(1)
 const hasMore = ref(false)
+const reportFabReady = ref(false)
+const reportFabPosition = ref({ left: 0, top: 0 })
+const reportFabBounds = ref({ minLeft: 0, minTop: 0, maxLeft: 0, maxTop: 0 })
+const reportFabDragState = {
+  startX: 0,
+  startY: 0,
+  startLeft: 0,
+  startTop: 0,
+  moved: false,
+}
+let suppressReportFabClick = false
+let suppressReportFabClickTimer: ReturnType<typeof setTimeout> | undefined
+const REPORT_FAB_DRAG_THRESHOLD = 6
+const REPORT_FAB_POSITION_STORAGE_KEY = 'home_report_fab_position'
 
 const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(catalog.value.categories))
 const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
@@ -69,6 +85,15 @@ const contentChips = computed<ContentChipOption[]>(() => {
   }))
 })
 const filteredItems = computed(() => items.value)
+const canShowReportFab = computed(() => userStore.userType === '07')
+const reportFabStyle = computed(() => reportFabReady.value
+  ? {
+      left: `${reportFabPosition.value.left}px`,
+      top: `${reportFabPosition.value.top}px`,
+      right: 'auto',
+      bottom: 'auto',
+    }
+  : {})
 
 onLoad(() => {
   try {
@@ -77,7 +102,13 @@ onLoad(() => {
   catch {
     statusBarHeight.value = 44
   }
+  initReportFabPosition()
+  refreshUserProfile()
   load()
+})
+
+onResize(() => {
+  initReportFabPosition(true)
 })
 
 async function load() {
@@ -366,6 +397,18 @@ function saveImageFile(filePath: string) {
   })
 }
 
+async function refreshUserProfile() {
+  if (!userStore.token)
+    return
+
+  try {
+    await userStore.fetchProfile()
+  }
+  catch {
+    // 首页主数据加载不依赖用户资料刷新。
+  }
+}
+
 function showSaveFailed(imageUrl: string) {
   uni.showToast({ title: '保存失败，请稍后重试', icon: 'none' })
   uni.previewImage({
@@ -375,7 +418,139 @@ function showSaveFailed(imageUrl: string) {
 }
 
 function goReport() {
+  if (suppressReportFabClick) {
+    suppressReportFabClick = false
+    clearSuppressReportFabClickTimer()
+    return
+  }
   uni.navigateTo({ url: '/pages/report/create' })
+}
+
+function initReportFabPosition(keepCurrent = false) {
+  let systemInfo: UniApp.GetSystemInfoResult
+  try {
+    systemInfo = uni.getSystemInfoSync()
+  }
+  catch {
+    return
+  }
+
+  const size = uni.upx2px(90)
+  const edgePadding = uni.upx2px(12)
+  const rightOffset = uni.upx2px(46)
+  const bottomOffset = uni.upx2px(112) + getSafeAreaBottom(systemInfo)
+  const windowWidth = systemInfo.windowWidth || 0
+  const windowHeight = systemInfo.windowHeight || 0
+  const minLeft = edgePadding
+  const minTop = edgePadding + (systemInfo.statusBarHeight || 0)
+  const maxLeft = Math.max(minLeft, windowWidth - size - edgePadding)
+  const maxTop = Math.max(minTop, windowHeight - size - edgePadding)
+
+  reportFabBounds.value = { minLeft, minTop, maxLeft, maxTop }
+  const savedPosition = keepCurrent ? undefined : getSavedReportFabPosition()
+  reportFabPosition.value = {
+    left: clamp(
+      keepCurrent ? reportFabPosition.value.left : savedPosition?.left ?? windowWidth - size - rightOffset,
+      minLeft,
+      maxLeft,
+    ),
+    top: clamp(
+      keepCurrent ? reportFabPosition.value.top : savedPosition?.top ?? windowHeight - size - bottomOffset,
+      minTop,
+      maxTop,
+    ),
+  }
+  reportFabReady.value = true
+}
+
+function startReportFabDrag(event: any) {
+  const touch = getTouchPoint(event)
+  if (!touch)
+    return
+
+  clearSuppressReportFabClickTimer()
+  reportFabDragState.startX = getTouchX(touch)
+  reportFabDragState.startY = getTouchY(touch)
+  reportFabDragState.startLeft = reportFabPosition.value.left
+  reportFabDragState.startTop = reportFabPosition.value.top
+  reportFabDragState.moved = false
+}
+
+function moveReportFab(event: any) {
+  const touch = getTouchPoint(event)
+  if (!touch)
+    return
+
+  const deltaX = getTouchX(touch) - reportFabDragState.startX
+  const deltaY = getTouchY(touch) - reportFabDragState.startY
+  if (Math.abs(deltaX) > REPORT_FAB_DRAG_THRESHOLD || Math.abs(deltaY) > REPORT_FAB_DRAG_THRESHOLD)
+    reportFabDragState.moved = true
+
+  reportFabPosition.value = {
+    left: clamp(reportFabDragState.startLeft + deltaX, reportFabBounds.value.minLeft, reportFabBounds.value.maxLeft),
+    top: clamp(reportFabDragState.startTop + deltaY, reportFabBounds.value.minTop, reportFabBounds.value.maxTop),
+  }
+}
+
+function endReportFabDrag() {
+  if (!reportFabDragState.moved)
+    return
+
+  saveReportFabPosition()
+  suppressReportFabClick = true
+  clearSuppressReportFabClickTimer()
+  suppressReportFabClickTimer = setTimeout(() => {
+    suppressReportFabClick = false
+    suppressReportFabClickTimer = undefined
+  }, 250)
+}
+
+function getSavedReportFabPosition() {
+  try {
+    const position = uni.getStorageSync(REPORT_FAB_POSITION_STORAGE_KEY) as Partial<{ left: number, top: number }> | ''
+    if (!position || typeof position.left !== 'number' || typeof position.top !== 'number')
+      return undefined
+    return position
+  }
+  catch {
+    return undefined
+  }
+}
+
+function saveReportFabPosition() {
+  try {
+    uni.setStorageSync(REPORT_FAB_POSITION_STORAGE_KEY, reportFabPosition.value)
+  }
+  catch {
+    // 缓存失败不影响拖动和跳转。
+  }
+}
+
+function getTouchPoint(event: any) {
+  return event.touches?.[0] || event.changedTouches?.[0]
+}
+
+function getTouchX(touch: any) {
+  return Number(touch.clientX ?? touch.pageX ?? 0)
+}
+
+function getTouchY(touch: any) {
+  return Number(touch.clientY ?? touch.pageY ?? 0)
+}
+
+function getSafeAreaBottom(systemInfo: UniApp.GetSystemInfoResult) {
+  return systemInfo.safeAreaInsets?.bottom || 0
+}
+
+function clearSuppressReportFabClickTimer() {
+  if (!suppressReportFabClickTimer)
+    return
+  clearTimeout(suppressReportFabClickTimer)
+  suppressReportFabClickTimer = undefined
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
 }
 
 function formatTopOption(option: CatalogFilterOption): CatalogFilterOption {
@@ -631,9 +806,15 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
     </view>
 
     <button
+      v-if="canShowReportFab"
       class="report-fab"
       hover-class="none"
+      :style="reportFabStyle"
       @click="goReport"
+      @touchstart.stop="startReportFabDrag"
+      @touchmove.stop.prevent="moveReportFab"
+      @touchend.stop="endReportFabDrag"
+      @touchcancel.stop="endReportFabDrag"
     >
       <text class="fab-plus">
         +
@@ -1240,6 +1421,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   right: 46rpx;
   bottom: calc(112rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
   display: flex;
+  box-sizing: border-box;
   width: 90rpx;
   height: 90rpx;
   align-items: center;
@@ -1251,6 +1433,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   border-radius: 50%;
   background: #92e616;
   box-shadow: 0 8rpx 18rpx rgba(37, 38, 43, 0.2);
+  touch-action: none;
 }
 
 .fab-plus {

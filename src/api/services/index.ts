@@ -246,6 +246,7 @@ export interface UserInfoResponse {
     userId: string
     userName: string
     avatar: string
+    userType?: string | number
   } & Record<string, unknown>
   roles: string[]
   permissions: string[]
