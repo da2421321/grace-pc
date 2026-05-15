@@ -751,7 +751,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .hero {
   position: relative;
   z-index: 1;
-  height: 396rpx;
+  height: 416rpx;
   box-sizing: border-box;
   overflow: hidden;
   background: transparent;
@@ -880,7 +880,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .body-shell {
   position: relative;
   z-index: 1;
-  height: calc(100vh - var(--window-bottom, 0px) - 396rpx);
+  height: calc(100vh - var(--window-bottom, 0px) - 416rpx);
   overflow: hidden;
   border-radius: 30rpx 30rpx 0 0;
   background: #fff;
