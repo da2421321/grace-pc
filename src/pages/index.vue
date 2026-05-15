@@ -47,6 +47,7 @@ const reportFabReady = ref(false)
 const reportFabPosition = ref({ left: 0, top: 0 })
 const reportFabBounds = ref({ minLeft: 0, minTop: 0, maxLeft: 0, maxTop: 0 })
 const reportFabDragState = {
+  active: false,
   startX: 0,
   startY: 0,
   startLeft: 0,
@@ -423,6 +424,10 @@ function goReport() {
     clearSuppressReportFabClickTimer()
     return
   }
+  openReportPage()
+}
+
+function openReportPage() {
   uni.navigateTo({ url: '/pages/report/create' })
 }
 
@@ -469,6 +474,7 @@ function startReportFabDrag(event: any) {
     return
 
   clearSuppressReportFabClickTimer()
+  reportFabDragState.active = true
   reportFabDragState.startX = getTouchX(touch)
   reportFabDragState.startY = getTouchY(touch)
   reportFabDragState.startLeft = reportFabPosition.value.left
@@ -477,6 +483,9 @@ function startReportFabDrag(event: any) {
 }
 
 function moveReportFab(event: any) {
+  if (!reportFabDragState.active)
+    return
+
   const touch = getTouchPoint(event)
   if (!touch)
     return
@@ -486,6 +495,9 @@ function moveReportFab(event: any) {
   if (Math.abs(deltaX) > REPORT_FAB_DRAG_THRESHOLD || Math.abs(deltaY) > REPORT_FAB_DRAG_THRESHOLD)
     reportFabDragState.moved = true
 
+  if (!reportFabDragState.moved)
+    return
+
   reportFabPosition.value = {
     left: clamp(reportFabDragState.startLeft + deltaX, reportFabBounds.value.minLeft, reportFabBounds.value.maxLeft),
     top: clamp(reportFabDragState.startTop + deltaY, reportFabBounds.value.minTop, reportFabBounds.value.maxTop),
@@ -493,16 +505,38 @@ function moveReportFab(event: any) {
 }
 
 function endReportFabDrag() {
-  if (!reportFabDragState.moved)
+  if (!reportFabDragState.active)
     return
 
-  saveReportFabPosition()
+  reportFabDragState.active = false
+  if (reportFabDragState.moved) {
+    saveReportFabPosition()
+    suppressNextReportFabClick()
+    return
+  }
+
+  suppressNextReportFabClick()
+  openReportPage()
+}
+
+function cancelReportFabDrag() {
+  if (!reportFabDragState.active)
+    return
+
+  reportFabDragState.active = false
+  if (reportFabDragState.moved) {
+    saveReportFabPosition()
+    suppressNextReportFabClick()
+  }
+}
+
+function suppressNextReportFabClick() {
   suppressReportFabClick = true
   clearSuppressReportFabClickTimer()
   suppressReportFabClickTimer = setTimeout(() => {
     suppressReportFabClick = false
     suppressReportFabClickTimer = undefined
-  }, 250)
+  }, 500)
 }
 
 function getSavedReportFabPosition() {
@@ -814,7 +848,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
       @touchstart.stop="startReportFabDrag"
       @touchmove.stop.prevent="moveReportFab"
       @touchend.stop="endReportFabDrag"
-      @touchcancel.stop="endReportFabDrag"
+      @touchcancel.stop="cancelReportFabDrag"
     >
       <text class="fab-plus">
         +
