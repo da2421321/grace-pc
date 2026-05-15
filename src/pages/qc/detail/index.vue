@@ -252,7 +252,7 @@ function showSaveFailed(imageUrl: string) {
 
 .detail-hero {
   position: relative;
-  height: 960rpx;
+  height: 1036rpx;
   overflow: hidden;
   background: #ebe8e3;
 }
@@ -300,7 +300,7 @@ function showSaveFailed(imageUrl: string) {
   position: absolute;
   z-index: 1;
   left: 45rpx;
-  top: 215rpx;
+  top: 188rpx;
   width: 660rpx;
   height: 660rpx;
 }
@@ -327,7 +327,7 @@ function showSaveFailed(imageUrl: string) {
   position: relative;
   z-index: 2;
   min-height: 633rpx;
-  margin-top: -40rpx;
+  margin-top: -45rpx;
   box-sizing: border-box;
   padding: 0 50rpx;
   border-radius: 40rpx 40rpx 0 0;
@@ -343,7 +343,7 @@ function showSaveFailed(imageUrl: string) {
 }
 
 .detail-desc-row {
-  align-items: start;
+  align-items: flex-start;
   padding-top: 45rpx;
 }
 
@@ -410,12 +410,12 @@ function showSaveFailed(imageUrl: string) {
 }
 
 .detail-save-button {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100rpx;
   align-items: center;
   justify-content: center;
-  gap: 28rpx;
   margin: 0;
   padding: 0;
   border: 0;
@@ -427,7 +427,18 @@ function showSaveFailed(imageUrl: string) {
   line-height: 100rpx;
 }
 
+.detail-save-button text {
+  display: block;
+  width: 228rpx;
+  height: 30rpx;
+  line-height: 30rpx;
+  text-align: center;
+}
+
 .detail-save-icon {
+  position: absolute;
+  left: 187rpx;
+  top: 30rpx;
   width: 40rpx;
   height: 40rpx;
 }
