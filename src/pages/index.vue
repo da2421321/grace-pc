@@ -733,9 +733,11 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
             hover-class="none"
             @click="selectCategory(option.value)"
           >
-            <text class="category-label">
-              {{ option.label }}
-            </text>
+            <view class="category-label-wrap">
+              <text class="category-label">
+                {{ option.label }}
+              </text>
+            </view>
           </button>
         </scroll-view>
 
@@ -1202,13 +1204,36 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   content: '';
 }
 
-.category-label {
+.category-label-wrap {
   position: relative;
   z-index: 1;
+  display: inline-block;
+  line-height: 100rpx;
+}
+
+.category-label {
+  display: inline;
+}
+
+.category-item-active .category-label-wrap::after {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: 16rpx;
+  display: block;
+  width: 100%;
+  height: 10rpx;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: #92e616;
+  content: '';
+  pointer-events: none;
 }
 
 .category-back {
-  color: #777978;
+  color: #5f9f00;
   font-size: 24rpx;
 }
 
