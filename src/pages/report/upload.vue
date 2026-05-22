@@ -193,7 +193,13 @@ function toPathString(value: unknown) {
 }
 
 function resolveUploadedImageUrl(response: Partial<CommonUploadResponse> & { imgUrl?: string }) {
-  return response.url || response.imgUrl || response.fileName || response.newFileName || ''
+  return response.data?.fileUrl
+    || response.fileUrl
+    || response.url
+    || response.imgUrl
+    || response.fileName
+    || response.newFileName
+    || ''
 }
 
 function decodeQueryValue(value: unknown) {

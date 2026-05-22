@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad, onResize } from '@dcloudio/uni-app'
+import { onLoad, onResize, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
   fetchCategories,
@@ -58,6 +58,9 @@ let suppressReportFabClick = false
 let suppressReportFabClickTimer: ReturnType<typeof setTimeout> | undefined
 const REPORT_FAB_DRAG_THRESHOLD = 6
 const REPORT_FAB_POSITION_STORAGE_KEY = 'home_report_fab_position'
+const HOME_SHARE_TITLE = '品检图例'
+const HOME_SHARE_PATH = '/pages/index'
+const HOME_SHARE_IMAGE_URL = '/static/images/qc/home_hero.png'
 
 const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(catalog.value.categories))
 const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
@@ -111,6 +114,18 @@ onLoad(() => {
 onResize(() => {
   initReportFabPosition(true)
 })
+
+onShareAppMessage(() => ({
+  title: HOME_SHARE_TITLE,
+  path: HOME_SHARE_PATH,
+  imageUrl: HOME_SHARE_IMAGE_URL,
+}))
+
+onShareTimeline(() => ({
+  title: HOME_SHARE_TITLE,
+  query: '',
+  imageUrl: HOME_SHARE_IMAGE_URL,
+}))
 
 async function load() {
   const requestId = ++queryRequestId
@@ -623,6 +638,14 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
       :style="{ '--status-bar-height': `${statusBarHeight}px` }"
     >
       <view class="hero-main">
+        <button
+          class="home-share-button"
+          hover-class="home-share-button-hover"
+          open-type="share"
+        >
+          <text class="iconfont icon-share share-icon" />
+        </button>
+
         <view class="brand-copy">
           <text class="brand-title">
             品检图例
@@ -981,6 +1004,36 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   top: 0;
   width: 100%;
   height: 100%;
+}
+
+.home-share-button {
+  position: absolute;
+  z-index: 4;
+  right: 222rpx;
+  top: calc(var(--status-bar-height, 44px) + 12rpx);
+  display: flex;
+  width: 64rpx;
+  height: 64rpx;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.76);
+  color: #25262b;
+  line-height: 1;
+}
+
+.home-share-button-hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.share-icon {
+  color: #25262b;
+  font-size: 34rpx;
+  line-height: 1;
 }
 
 .brand-copy {
@@ -1509,6 +1562,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .search-button::after,
+.home-share-button::after,
 .retry-button::after,
 .load-more-retry::after,
 .top-tab::after,

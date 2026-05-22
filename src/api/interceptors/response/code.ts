@@ -1,5 +1,5 @@
 import type { AxiosResponse } from 'axios'
-import { ApiError, type ApiResult } from '../../types'
+import { ApiError, getErrorMessage, type ApiResult } from '../../types'
 import { showModalAsync, showToastAsync } from '@/utils/promisify'
 import { useUserStore } from '@/store/user'
 
@@ -13,6 +13,10 @@ function isTokenInvalidMessage(msg?: string) {
   if (!msg) return false
   const normalizedMsg = msg.toLowerCase()
   return normalizedMsg.includes('loginuser') || (normalizedMsg.includes('token') && normalizedMsg.includes('bearer'))
+}
+
+function shouldShowErrorMsg(response: AxiosResponse<ApiResult>) {
+  return ((response.config as { showErrorMsg?: boolean } | undefined)?.showErrorMsg ?? true)
 }
 
 export async function codeInterceptor(response: AxiosResponse<ApiResult>) {
@@ -46,6 +50,14 @@ export async function codeInterceptor(response: AxiosResponse<ApiResult>) {
     store.reset()
     uni.reLaunch({ url: '/pages/login' })
     throw new ApiError(response)
+  }
+
+  if (shouldShowErrorMsg(response)) {
+    await showToastAsync({
+      title: getErrorMessage(response),
+      icon: 'none',
+      duration: 2000,
+    })
   }
 
   throw new ApiError(response)
