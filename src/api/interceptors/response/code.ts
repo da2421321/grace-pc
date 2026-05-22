@@ -9,6 +9,12 @@ function normalizeCode(code?: number | string) {
   return Number.isNaN(num) ? undefined : num
 }
 
+function isTokenInvalidMessage(msg?: string) {
+  if (!msg) return false
+  const normalizedMsg = msg.toLowerCase()
+  return normalizedMsg.includes('loginuser') || (normalizedMsg.includes('token') && normalizedMsg.includes('bearer'))
+}
+
 export async function codeInterceptor(response: AxiosResponse<ApiResult>) {
   const { data } = response
   if (!data || typeof data !== 'object') return response
@@ -34,7 +40,7 @@ export async function codeInterceptor(response: AxiosResponse<ApiResult>) {
     throw new ApiError(response)
   }
 
-  if (code === 500 && data.msg?.includes('LoginUser')) {
+  if (code === 500 && isTokenInvalidMessage(data.msg)) {
     await showToastAsync({ title: '登录状态已过期，请重新登录', icon: 'none' })
     const store = useUserStore()
     store.reset()
