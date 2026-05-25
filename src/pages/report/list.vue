@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import {
   fetchMyReports,
   reportStatusLabel,
@@ -15,13 +15,7 @@ const activeTab = ref<ReportTab>('all')
 const navBarHeight = ref(88)
 const navMenuTop = ref(40)
 const navMenuHeight = ref(48)
-const fromSubmitSuccess = ref(false)
-
-const submitFlowRoutes = new Set([
-  'pages/report/create',
-  'pages/report/upload',
-  'pages/report/success',
-])
+let switchingToMine = false
 
 const tabs: Array<{ key: ReportTab, label: string }> = [
   { key: 'all', label: '全部' },
@@ -45,8 +39,7 @@ const filteredRows = computed(() => {
   return rows.value.filter(item => item.status === activeTab.value)
 })
 
-onLoad((options) => {
-  fromSubmitSuccess.value = options?.from === 'submitSuccess'
+onLoad(() => {
   initNavBar()
 
   // #ifdef MP-WEIXIN
@@ -56,6 +49,16 @@ onLoad((options) => {
 
 onShow(async () => {
   rows.value = await fetchMyReports()
+})
+
+onUnload(() => {
+  if (switchingToMine)
+    return
+
+  switchingToMine = true
+  setTimeout(() => {
+    uni.reLaunch({ url: '/pages/mine/index' })
+  }, 0)
 })
 
 function initNavBar() {
@@ -85,38 +88,8 @@ function initNavBar() {
 }
 
 function goBack() {
-  if (shouldBackToMine()) {
-    goMine()
-    return
-  }
-
-  if (getCurrentPages().length > 1) {
-    uni.navigateBack()
-    return
-  }
-
-  goMine()
-}
-
-function goMine() {
-  uni.switchTab({ url: '/pages/mine/index' })
-}
-
-function shouldBackToMine() {
-  if (fromSubmitSuccess.value)
-    return true
-
-  const pages = getCurrentPages()
-  if (pages.length <= 1)
-    return true
-
-  const previousRoute = getPageRoute(pages[pages.length - 2])
-  return submitFlowRoutes.has(previousRoute)
-}
-
-function getPageRoute(page: unknown) {
-  const route = (page as { route?: string })?.route || ''
-  return route.replace(/^\//, '').split('?')[0]
+  switchingToMine = true
+  uni.reLaunch({ url: '/pages/mine/index' })
 }
 
 function goDetail(id: string) {

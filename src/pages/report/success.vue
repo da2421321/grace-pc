@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
 const countdown = ref(2)
-const openedReports = ref(false)
 
 let timer: ReturnType<typeof setInterval> | undefined
+let openingReports = false
 
 const navBarStyle = computed(() => ({
   height: `${navBarHeight.value}px`,
@@ -29,11 +29,11 @@ onUnmounted(() => {
 })
 
 onShow(() => {
-  if (!openedReports.value)
-    return
+  openingReports = false
+})
 
-  openedReports.value = false
-  uni.switchTab({ url: '/pages/mine/index' })
+onHide(() => {
+  clearReturnTimer()
 })
 
 function initNavBar() {
@@ -70,8 +70,12 @@ function clearReturnTimer() {
 
 function startCountdown() {
   countdown.value = 2
+  openingReports = false
   clearReturnTimer()
   timer = setInterval(() => {
+    if (openingReports)
+      return
+
     if (countdown.value <= 1) {
       goHome()
       return
@@ -81,19 +85,18 @@ function startCountdown() {
   }, 1000)
 }
 
-function goBack() {
-  goHome()
-}
-
 function goHome() {
+  if (openingReports)
+    return
+
   clearReturnTimer()
   uni.switchTab({ url: '/pages/index' })
 }
 
 function goReports() {
+  openingReports = true
   clearReturnTimer()
-  openedReports.value = true
-  uni.navigateTo({ url: '/pages/report/list?from=submitSuccess' })
+  uni.navigateTo({ url: '/pages/report/list' })
 }
 </script>
 
@@ -101,7 +104,7 @@ function goReports() {
   <view class="success-page">
     <view class="nav-bar" :style="navBarStyle">
       <view class="nav-row" :style="navRowStyle">
-        <view class="nav-back" @click="goBack">
+        <view class="nav-back" @click="goHome">
           <view class="back-icon" />
         </view>
         <text class="nav-title">图片上报</text>
