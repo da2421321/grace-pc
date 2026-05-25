@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { computed, ref } from 'vue'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import {
   fetchMyReports,
   reportStatusLabel,
@@ -12,9 +12,16 @@ type ReportTab = 'all' | ReportProcessStatus
 
 const rows = ref<MyReportRecord[]>([])
 const activeTab = ref<ReportTab>('all')
-const navBarHeight = ref(44)
-const navMenuTop = ref(0)
-const navMenuHeight = ref(44)
+const navBarHeight = ref(88)
+const navMenuTop = ref(40)
+const navMenuHeight = ref(48)
+const fromSubmitSuccess = ref(false)
+
+const submitFlowRoutes = new Set([
+  'pages/report/create',
+  'pages/report/upload',
+  'pages/report/success',
+])
 
 const tabs: Array<{ key: ReportTab, label: string }> = [
   { key: 'all', label: '全部' },
@@ -38,8 +45,13 @@ const filteredRows = computed(() => {
   return rows.value.filter(item => item.status === activeTab.value)
 })
 
-onMounted(() => {
+onLoad((options) => {
+  fromSubmitSuccess.value = options?.from === 'submitSuccess'
   initNavBar()
+
+  // #ifdef MP-WEIXIN
+  setTimeout(initNavBar, 50)
+  // #endif
 })
 
 onShow(async () => {
@@ -50,35 +62,61 @@ function initNavBar() {
   try {
     const systemInfo = uni.getSystemInfoSync()
     const statusBarHeight = systemInfo.statusBarHeight || 0
-
-    // #ifdef MP-WEIXIN
-    const menuButton = uni.getMenuButtonBoundingClientRect()
-    const navGap = Math.max(menuButton.top - statusBarHeight, 0)
-    navMenuTop.value = menuButton.top
-    navMenuHeight.value = menuButton.height
-    navBarHeight.value = menuButton.bottom + navGap
-    return
-    // #endif
-
     navMenuTop.value = statusBarHeight
     navMenuHeight.value = 44
     navBarHeight.value = statusBarHeight + 44
+
+    // #ifdef MP-WEIXIN
+    const menuButton = uni.getMenuButtonBoundingClientRect()
+    if (menuButton.top > 0 && menuButton.height > 0 && menuButton.bottom > 0) {
+      const navGap = Math.max(menuButton.top - statusBarHeight, 0)
+      navMenuTop.value = menuButton.top
+      navMenuHeight.value = menuButton.height
+      navBarHeight.value = menuButton.bottom + navGap
+    }
+    return
+    // #endif
   }
   catch {
-    navMenuTop.value = 0
-    navMenuHeight.value = 44
-    navBarHeight.value = 44
+    navMenuTop.value = 40
+    navMenuHeight.value = 48
+    navBarHeight.value = 88
   }
 }
 
 function goBack() {
-  const pages = getCurrentPages()
-  if (pages.length > 1) {
+  if (shouldBackToMine()) {
+    goMine()
+    return
+  }
+
+  if (getCurrentPages().length > 1) {
     uni.navigateBack()
     return
   }
 
+  goMine()
+}
+
+function goMine() {
   uni.switchTab({ url: '/pages/mine/index' })
+}
+
+function shouldBackToMine() {
+  if (fromSubmitSuccess.value)
+    return true
+
+  const pages = getCurrentPages()
+  if (pages.length <= 1)
+    return true
+
+  const previousRoute = getPageRoute(pages[pages.length - 2])
+  return submitFlowRoutes.has(previousRoute)
+}
+
+function getPageRoute(page: unknown) {
+  const route = (page as { route?: string })?.route || ''
+  return route.replace(/^\//, '').split('?')[0]
 }
 
 function goDetail(id: string) {

@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
 const countdown = ref(2)
+const openedReports = ref(false)
 
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -24,6 +26,14 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearReturnTimer()
+})
+
+onShow(() => {
+  if (!openedReports.value)
+    return
+
+  openedReports.value = false
+  uni.switchTab({ url: '/pages/mine/index' })
 })
 
 function initNavBar() {
@@ -82,7 +92,8 @@ function goHome() {
 
 function goReports() {
   clearReturnTimer()
-  uni.redirectTo({ url: '/pages/report/list' })
+  openedReports.value = true
+  uni.navigateTo({ url: '/pages/report/list?from=submitSuccess' })
 }
 </script>
 

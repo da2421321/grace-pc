@@ -321,7 +321,7 @@ function formatVarietyLabel(option: CatalogFilterOption) {
           取消
         </button>
         <button class="action-btn submit-btn" @click="submit">
-          提交
+          下一步
         </button>
       </view>
     </view>
