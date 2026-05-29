@@ -251,7 +251,7 @@ function logout() {
           />
         </button>
 
-        <button class="service-item no-border" @click="openSheet('admin')">
+        <!-- <button class="service-item no-border" @click="openSheet('admin')">
           <image
             class="service-icon"
             src="/static/images/figma/mine/service-admin.svg"
@@ -263,7 +263,7 @@ function logout() {
             src="/static/images/figma/mine/profile-arrow.svg"
             mode="aspectFit"
           />
-        </button>
+        </button> -->
       </view>
     </view>
 

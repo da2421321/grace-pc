@@ -41,6 +41,7 @@ const categoryStep = ref(0)
 const detailItem = ref<QualityImageItem>()
 let queryRequestId = 0
 const PAGE_SIZE = 20
+const DISABLE_MOCK_FALLBACK = { mockFallback: false } as const
 const currentPage = ref(1)
 const hasMore = ref(false)
 const reportFabReady = ref(false)
@@ -134,9 +135,9 @@ async function load() {
   loadMoreError.value = ''
   try {
     const [categoryResponse, varietyResponse, imageResponse] = await Promise.all([
-      fetchCategories(),
-      fetchVarieties({ pageNum: 1, pageSize: 100 }),
-      fetchQualityImages({ pageNum: 1, pageSize: PAGE_SIZE }),
+      fetchCategories(undefined, DISABLE_MOCK_FALLBACK),
+      fetchVarieties({ pageNum: 1, pageSize: 100 }, DISABLE_MOCK_FALLBACK),
+      fetchQualityImages({ pageNum: 1, pageSize: PAGE_SIZE }, DISABLE_MOCK_FALLBACK),
     ])
     if (requestId !== queryRequestId)
       return
@@ -173,7 +174,7 @@ async function loadResults(pageNum = 1, append = false) {
 
   const requestId = ++queryRequestId
   try {
-    const response = await fetchQualityImages(buildQueryParams(pageNum))
+    const response = await fetchQualityImages(buildQueryParams(pageNum), DISABLE_MOCK_FALLBACK)
     if (requestId === queryRequestId) {
       items.value = append ? [...items.value, ...response.items] : response.items
       currentPage.value = getResponsePageNum(response, pageNum)
@@ -250,7 +251,7 @@ async function ensureCategoryChildren(value: string) {
   if (!node?.id || node.leaf || node.children.length > 0)
     return
 
-  const response = await fetchCategories({ parentId: node.id })
+  const response = await fetchCategories({ parentId: node.id }, DISABLE_MOCK_FALLBACK)
   node.children = response.items
   node.hasChildren = response.items.length > 0
   node.leaf = response.items.length === 0
@@ -267,7 +268,7 @@ async function refreshVarietiesForSelection() {
     keyword: appliedSearchQuery.value || undefined,
     pageNum: 1,
     pageSize: 100,
-  })
+  }, DISABLE_MOCK_FALLBACK)
   catalog.value = { ...catalog.value, varieties: response.items }
   if (selectedVariety.value !== ALL_VALUE) {
     const stillAvailable = getVarietyOptionsFromCatalog(

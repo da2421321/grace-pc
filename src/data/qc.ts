@@ -109,6 +109,10 @@ export interface VarietyQuery {
 
 const baseUrl = import.meta.env.VITE_APP_BASE_URL || ''
 
+interface FetchDataOptions {
+  mockFallback?: boolean
+}
+
 const MOCK_CATEGORY_IDS = {
   bag: 'mock-cat-bag',
   bagLevel: 'mock-cat-bag-a',
@@ -197,7 +201,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
   },
 ]
 
-export async function fetchQualityImages(query?: QualityImageQuery): Promise<QualityImageApiResponse> {
+export async function fetchQualityImages(query?: QualityImageQuery, options?: FetchDataOptions): Promise<QualityImageApiResponse> {
   try {
     const response = await apis.zjQc.qualityImages(cleanQualityImageQuery(query))
     const payload = unwrapData<QualityImageApiResponse>(response)
@@ -209,8 +213,11 @@ export async function fetchQualityImages(query?: QualityImageQuery): Promise<Qua
     }
   }
   catch {
-    // 本地预览或后端未部署时继续使用 quality-images 的本地兜底数据。
+    // 接口异常时按调用方配置决定是否使用本地预览数据。
   }
+
+  if (!shouldUseMockFallback(options))
+    return createEmptyPageResponse(query)
 
   const items = filterMockItems(query).map(normalizeImageItem)
   return {
@@ -223,7 +230,7 @@ export async function fetchQualityImages(query?: QualityImageQuery): Promise<Qua
   }
 }
 
-export async function fetchQualityImageDetail(imageId: string | number): Promise<QualityImageItem | undefined> {
+export async function fetchQualityImageDetail(imageId: string | number, options?: FetchDataOptions): Promise<QualityImageItem | undefined> {
   try {
     const response = await apis.zjQc.qualityImageDetail(imageId as `${number}`)
     const payload = unwrapData<QualityImageItem>(response)
@@ -234,10 +241,13 @@ export async function fetchQualityImageDetail(imageId: string | number): Promise
     // 本地预览或后端未部署时继续使用本地兜底数据。
   }
 
+  if (!shouldUseMockFallback(options))
+    return undefined
+
   return MOCK_ITEMS.map(normalizeImageItem).find(item => item.id === String(imageId))
 }
 
-export async function fetchCategories(query?: CategoryQuery): Promise<CategoryListResponse> {
+export async function fetchCategories(query?: CategoryQuery, options?: FetchDataOptions): Promise<CategoryListResponse> {
   try {
     const response = await apis.zjQc.categories(cleanCategoryQuery(query))
     const payload = unwrapData<CategoryListResponse>(response)
@@ -251,6 +261,9 @@ export async function fetchCategories(query?: CategoryQuery): Promise<CategoryLi
     // 本地预览或后端未部署时继续使用本地兜底数据。
   }
 
+  if (!shouldUseMockFallback(options))
+    return { items: [] }
+
   const catalog = buildMockCatalog()
   const parentId = toStringValue(query?.parentId)
   if (!parentId)
@@ -260,7 +273,7 @@ export async function fetchCategories(query?: CategoryQuery): Promise<CategoryLi
   return { items: parent?.children ?? [] }
 }
 
-export async function fetchVarieties(query?: VarietyQuery): Promise<QualityPageResponse<VarietyOption>> {
+export async function fetchVarieties(query?: VarietyQuery, options?: FetchDataOptions): Promise<QualityPageResponse<VarietyOption>> {
   try {
     const response = await apis.zjQc.varieties(cleanVarietyQuery(query))
     const payload = unwrapData<QualityPageResponse<VarietyOption>>(response)
@@ -274,6 +287,9 @@ export async function fetchVarieties(query?: VarietyQuery): Promise<QualityPageR
   catch {
     // 本地预览或后端未部署时继续使用本地兜底数据。
   }
+
+  if (!shouldUseMockFallback(options))
+    return createEmptyPageResponse(query)
 
   const categoryId = toStringValue(query?.categoryId)
   const keyword = query?.keyword?.trim()
@@ -293,6 +309,26 @@ export async function fetchVarieties(query?: VarietyQuery): Promise<QualityPageR
     pages: 1,
     hasMore: false,
   }
+}
+
+function shouldUseMockFallback(options?: FetchDataOptions) {
+  return options?.mockFallback !== false
+}
+
+function createEmptyPageResponse<T>(query?: { pageNum?: number, pageSize?: number }): QualityPageResponse<T> {
+  return {
+    items: [],
+    total: 0,
+    pageNum: getPositiveNumber(query?.pageNum, 1),
+    pageSize: getPositiveNumber(query?.pageSize, 0),
+    pages: 0,
+    hasMore: false,
+  }
+}
+
+function getPositiveNumber(value: unknown, fallback: number) {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : fallback
 }
 
 export async function fetchCategoryVarieties(): Promise<CategoryVarietyResponse> {

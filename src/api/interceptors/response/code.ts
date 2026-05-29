@@ -1,6 +1,6 @@
 import type { AxiosResponse } from 'axios'
 import { ApiError, getErrorMessage, type ApiResult } from '../../types'
-import { showModalAsync, showToastAsync } from '@/utils/promisify'
+import { showToastAsync } from '@/utils/promisify'
 import { useUserStore } from '@/store/user'
 
 function normalizeCode(code?: number | string) {
@@ -27,20 +27,14 @@ export async function codeInterceptor(response: AxiosResponse<ApiResult>) {
   if (code === undefined || code === 200) return response
 
   if (code === 401) {
-    try {
-      await showModalAsync({
-        title: '提示',
-        content: '登录状态已过期，您可以继续留在该页面，或者重新登录?',
-        cancelText: '取消',
-        confirmText: '确定',
-      })
-      const store = useUserStore()
-      store.reset()
-      uni.reLaunch({ url: '/pages/login' })
-    }
-    catch {
-      // user canceled, swallow rejection but still throw ApiError to keep flow consistent
-    }
+    await showToastAsync({
+      title: data.msg || '用户未登录或登录已过期',
+      icon: 'none',
+      duration: 2000,
+    })
+    const store = useUserStore()
+    store.reset()
+    uni.reLaunch({ url: '/pages/login' })
     throw new ApiError(response)
   }
 
