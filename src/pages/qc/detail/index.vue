@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { fetchQualityImageDetail, getFullCategoryPath, type QualityImageItem } from '@/data/qc'
+import { fetchQualityImageDetail, getFullCategoryPath, getQualityImageUrls, type QualityImageItem } from '@/data/qc'
 
 const detailItem = ref<QualityImageItem>()
+const currentImageIndex = ref(0)
+const imagePreviewVisible = ref(false)
+const imagePreviewUrls = ref<string[]>([])
+const imagePreviewIndex = ref(0)
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
@@ -17,6 +21,11 @@ const navBackStyle = computed(() => ({
   top: `${navMenuTop.value}px`,
   height: `${navMenuHeight.value}px`,
 }))
+
+const detailImageUrls = computed(() => detailItem.value ? getQualityImageUrls(detailItem.value) : [])
+const currentDetailImageUrl = computed(() => {
+  return detailImageUrls.value[currentImageIndex.value] || detailImageUrls.value[0] || '/static/images/figma/detail/bag.png'
+})
 
 onMounted(() => {
   initNavBar()
@@ -33,6 +42,7 @@ onLoad(async (query = {}) => {
 
   try {
     detailItem.value = await fetchQualityImageDetail(id)
+    currentImageIndex.value = 0
   }
   finally {
     loading.value = false
@@ -69,7 +79,9 @@ function goBack() {
 }
 
 function getDetailImageUrl(item: QualityImageItem) {
-  return item.imageUrl || '/static/images/figma/detail/bag.png'
+  if (item === detailItem.value)
+    return currentDetailImageUrl.value
+  return getQualityImageUrls(item)[0] || '/static/images/figma/detail/bag.png'
 }
 
 function getCondensedCategoryPath(item: QualityImageItem) {
@@ -78,6 +90,49 @@ function getCondensedCategoryPath(item: QualityImageItem) {
 
 function getDetailVarietyLabel(item: QualityImageItem) {
   return `${item.varietyName}(${item.varietyCode})`
+}
+
+function onDetailSwiperChange(event: { detail?: { current?: number } }) {
+  const current = Number(event.detail?.current ?? 0)
+  currentImageIndex.value = Number.isFinite(current) ? current : 0
+}
+
+function previewDetailImages() {
+  openImagePreview(detailImageUrls.value, currentDetailImageUrl.value)
+}
+
+function switchDetailImage(offset: number) {
+  const total = detailImageUrls.value.length
+  if (total <= 1)
+    return
+
+  currentImageIndex.value = (currentImageIndex.value + offset + total) % total
+}
+
+function openImagePreview(urls: string[], currentUrl: string) {
+  if (!urls.length)
+    return
+
+  imagePreviewUrls.value = urls
+  imagePreviewIndex.value = Math.max(0, urls.indexOf(currentUrl))
+  imagePreviewVisible.value = true
+}
+
+function closeImagePreview() {
+  imagePreviewVisible.value = false
+}
+
+function onImagePreviewChange(event: { detail?: { current?: number } }) {
+  const current = Number(event.detail?.current ?? 0)
+  imagePreviewIndex.value = Number.isFinite(current) ? current : 0
+}
+
+function switchPreviewImage(offset: number) {
+  const total = imagePreviewUrls.value.length
+  if (total <= 1)
+    return
+
+  imagePreviewIndex.value = (imagePreviewIndex.value + offset + total) % total
 }
 
 function saveDetailImage(item: QualityImageItem) {
@@ -173,11 +228,40 @@ function showSaveFailed(imageUrl: string) {
             src="/static/images/figma/detail/product-shadow.svg"
             mode="aspectFill"
           />
-          <image
-            class="detail-product-image"
-            :src="getDetailImageUrl(detailItem)"
-            mode="aspectFit"
-          />
+          <swiper
+            class="detail-product-swiper"
+            :current="currentImageIndex"
+            circular
+            @change="onDetailSwiperChange"
+          >
+            <swiper-item
+              v-for="imageUrl in detailImageUrls"
+              :key="imageUrl"
+            >
+              <image
+                class="detail-product-image"
+                :src="imageUrl"
+                mode="aspectFit"
+                @click="previewDetailImages"
+              />
+            </swiper-item>
+          </swiper>
+          <template v-if="detailImageUrls.length > 1">
+            <button
+              class="detail-image-nav detail-image-nav-prev"
+              hover-class="none"
+              @click.stop="switchDetailImage(-1)"
+            >
+              <view class="detail-image-nav-icon detail-image-nav-icon-prev" />
+            </button>
+            <button
+              class="detail-image-nav detail-image-nav-next"
+              hover-class="none"
+              @click.stop="switchDetailImage(1)"
+            >
+              <view class="detail-image-nav-icon detail-image-nav-icon-next" />
+            </button>
+          </template>
         </view>
       </template>
     </view>
@@ -238,6 +322,55 @@ function showSaveFailed(imageUrl: string) {
         />
         <text>保存图片</text>
       </button>
+    </view>
+
+    <view
+      v-if="imagePreviewVisible"
+      class="image-preview-mask"
+      @click="closeImagePreview"
+    >
+      <button
+        class="image-preview-close"
+        hover-class="none"
+        @click.stop="closeImagePreview"
+      >
+        <view class="image-preview-close-icon" />
+      </button>
+      <swiper
+        class="image-preview-swiper"
+        :current="imagePreviewIndex"
+        circular
+        @change="onImagePreviewChange"
+        @click.stop
+      >
+        <swiper-item
+          v-for="imageUrl in imagePreviewUrls"
+          :key="imageUrl"
+        >
+          <image
+            class="image-preview-image"
+            :src="imageUrl"
+            mode="aspectFit"
+            @click.stop
+          />
+        </swiper-item>
+      </swiper>
+      <template v-if="imagePreviewUrls.length > 1">
+        <button
+          class="image-preview-nav image-preview-nav-prev"
+          hover-class="none"
+          @click.stop="switchPreviewImage(-1)"
+        >
+          <view class="image-preview-nav-icon image-preview-nav-icon-prev" />
+        </button>
+        <button
+          class="image-preview-nav image-preview-nav-next"
+          hover-class="none"
+          @click.stop="switchPreviewImage(1)"
+        >
+          <view class="image-preview-nav-icon image-preview-nav-icon-next" />
+        </button>
+      </template>
     </view>
   </view>
 </template>
@@ -312,6 +445,64 @@ function showSaveFailed(imageUrl: string) {
   top: 0;
   width: 660rpx;
   height: 660rpx;
+}
+
+.detail-product-swiper {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: 0;
+  width: 660rpx;
+  height: 660rpx;
+}
+
+.detail-product-swiper .detail-product-image {
+  position: static;
+  display: block;
+}
+
+.detail-image-nav {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  display: flex;
+  width: 72rpx;
+  height: 72rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: rgba(37, 38, 43, 0.48);
+  transform: translateY(-50%);
+}
+
+.detail-image-nav::after {
+  border: 0;
+}
+
+.detail-image-nav-prev {
+  left: 10rpx;
+}
+
+.detail-image-nav-next {
+  right: 10rpx;
+}
+
+.detail-image-nav-icon {
+  width: 20rpx;
+  height: 20rpx;
+  border-top: 4rpx solid #fff;
+  border-right: 4rpx solid #fff;
+}
+
+.detail-image-nav-icon-prev {
+  transform: translateX(4rpx) rotate(-135deg);
+}
+
+.detail-image-nav-icon-next {
+  transform: translateX(-4rpx) rotate(45deg);
 }
 
 .detail-product-shadow {
@@ -477,5 +668,117 @@ function showSaveFailed(imageUrl: string) {
 .detail-save-button::after,
 .not-found-button::after {
   border: 0;
+}
+
+.image-preview-mask {
+  position: fixed;
+  z-index: 999;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.image-preview-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview-close {
+  position: fixed;
+  z-index: 1002;
+  top: calc(70rpx + env(safe-area-inset-top));
+  right: 34rpx;
+  display: flex;
+  width: 72rpx;
+  height: 72rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.image-preview-close::after {
+  border: 0;
+}
+
+.image-preview-close-icon {
+  position: relative;
+  width: 30rpx;
+  height: 30rpx;
+}
+
+.image-preview-close-icon::before,
+.image-preview-close-icon::after {
+  position: absolute;
+  left: 14rpx;
+  top: 0;
+  width: 4rpx;
+  height: 30rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  content: "";
+}
+
+.image-preview-close-icon::before {
+  transform: rotate(45deg);
+}
+
+.image-preview-close-icon::after {
+  transform: rotate(-45deg);
+}
+
+.image-preview-nav {
+  position: fixed;
+  z-index: 1001;
+  top: 50%;
+  display: flex;
+  width: 86rpx;
+  height: 86rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-50%);
+}
+
+.image-preview-nav::after {
+  border: 0;
+}
+
+.image-preview-nav-prev {
+  left: 28rpx;
+}
+
+.image-preview-nav-next {
+  right: 28rpx;
+}
+
+.image-preview-nav-icon {
+  width: 24rpx;
+  height: 24rpx;
+  border-top: 5rpx solid #fff;
+  border-right: 5rpx solid #fff;
+}
+
+.image-preview-nav-icon-prev {
+  transform: translateX(5rpx) rotate(-135deg);
+}
+
+.image-preview-nav-icon-next {
+  transform: translateX(-5rpx) rotate(45deg);
 }
 </style>

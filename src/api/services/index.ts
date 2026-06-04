@@ -256,10 +256,14 @@ export type DictQuery = Record<string, string | number | undefined>
 
 export interface PcQualityImageItem {
   id: string
+  collectionId?: string | number
   categoryId?: string | number
   varietyId?: string | number
   enabled: boolean
   imageUrl: string
+  imageUrls?: string[]
+  images?: string[]
+  imageCount?: number
   varietyName: string
   varietyCode: string
   categoryPath: string[]

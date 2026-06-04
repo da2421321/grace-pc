@@ -4,10 +4,14 @@ export const ALL_VALUE = '__all__'
 
 export interface QualityImageItem {
   id: string
+  collectionId?: string
   categoryId?: string
   varietyId?: string
   enabled: boolean
   imageUrl: string
+  imageUrls: string[]
+  images?: string[]
+  imageCount?: number
   varietyName: string
   varietyCode: string
   categoryPath: string[]
@@ -132,6 +136,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
     varietyId: 'mock-var-bag-001',
     enabled: true,
     imageUrl: '/static/images/figma/home/shoe-01.png',
+    imageUrls: ['/static/images/figma/home/shoe-01.png'],
     varietyName: '挎包',
     varietyCode: 'BAG-001',
     categoryPath: ['包包', 'A级', '挎包'],
@@ -147,6 +152,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
     varietyId: 'mock-var-bag-001',
     enabled: true,
     imageUrl: '/static/images/figma/home/shoe-01.png',
+    imageUrls: ['/static/images/figma/home/shoe-01.png'],
     varietyName: '挎包',
     varietyCode: 'BAG-001',
     categoryPath: ['包包', 'A级', '挎包'],
@@ -162,6 +168,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
     varietyId: 'mock-var-shoe-101',
     enabled: true,
     imageUrl: '/static/images/figma/home/shoe-01.png',
+    imageUrls: ['/static/images/figma/home/shoe-01.png'],
     varietyName: '短靴',
     varietyCode: 'SHOE-101',
     categoryPath: ['鞋靴', '环保材料', '短靴'],
@@ -177,6 +184,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
     varietyId: 'mock-var-clo-210',
     enabled: true,
     imageUrl: '/static/images/figma/home/shoe-01.png',
+    imageUrls: ['/static/images/figma/home/shoe-01.png'],
     varietyName: '外套',
     varietyCode: 'CLO-210',
     categoryPath: ['服饰', '春夏', '外套'],
@@ -192,6 +200,7 @@ const MOCK_ITEMS: QualityImageItem[] = [
     varietyId: 'mock-var-shoe-999',
     enabled: false,
     imageUrl: '/static/images/figma/home/shoe-01.png',
+    imageUrls: ['/static/images/figma/home/shoe-01.png'],
     varietyName: '运动鞋',
     varietyCode: 'SHOE-999',
     categoryPath: ['鞋靴', '停用示例', '运动鞋'],
@@ -360,10 +369,14 @@ function unwrapData<T>(response: unknown): T | undefined {
 
 type QualityImageSource = Partial<Omit<QualityImageItem, 'categoryPath' | 'categoryPathIds'>> & {
   imageId?: unknown
+  collectionId?: unknown
   categoryId?: unknown
   varietyId?: unknown
   categoryPath?: unknown
   categoryPathIds?: unknown
+  imageUrls?: unknown
+  images?: unknown
+  imageCount?: unknown
 }
 
 function normalizeImageItem(item: QualityImageSource): QualityImageItem {
@@ -376,13 +389,19 @@ function normalizeImageItem(item: QualityImageSource): QualityImageItem {
   const enabled = typeof item.enabled === 'boolean'
     ? item.enabled
     : Number(item.enabled ?? 1) !== 0
+  const coverUrl = resolveImageUrl(toStringValue(item.imageUrl))
+  const imageUrls = normalizeImageUrls(item.imageUrls ?? item.images, coverUrl)
 
   return {
     id: toStringValue(item.id || item.imageId),
+    collectionId: toStringValue(item.collectionId) || undefined,
     categoryId: toStringValue(item.categoryId) || undefined,
     varietyId: toStringValue(item.varietyId) || undefined,
     enabled,
-    imageUrl: resolveImageUrl(toStringValue(item.imageUrl)),
+    imageUrl: imageUrls[0] || coverUrl,
+    imageUrls,
+    images: imageUrls,
+    imageCount: Number.isFinite(Number(item.imageCount)) ? Number(item.imageCount) : imageUrls.length,
     varietyName: toStringValue(item.varietyName),
     varietyCode: toStringValue(item.varietyCode),
     categoryPath,
@@ -392,6 +411,10 @@ function normalizeImageItem(item: QualityImageSource): QualityImageItem {
     description: toStringValue(item.description) || undefined,
     placeholderTone: item.placeholderTone,
   }
+}
+
+export function getQualityImageUrls(item: QualityImageItem, fallback = '/static/images/figma/detail/bag.png') {
+  return item.imageUrls?.length ? item.imageUrls : [item.imageUrl || fallback]
 }
 
 type CategoryNodeSource = Partial<Omit<CategoryNode, 'children' | 'pathIds' | 'pathNames' | 'id' | 'parentId' | 'level'>> & {
@@ -489,6 +512,41 @@ function toStringArray(value: unknown): string[] {
   if (typeof value === 'string')
     return value.split(/[,/]/).map(part => part.trim()).filter(Boolean)
   return []
+}
+
+function normalizeImageUrls(value: unknown, fallback = '') {
+  const urls = toImageUrlArray(value).map(resolveImageUrl).filter(Boolean)
+  const resolvedFallback = resolveImageUrl(fallback)
+
+  if (resolvedFallback && !urls.includes(resolvedFallback))
+    urls.unshift(resolvedFallback)
+
+  return Array.from(new Set(urls))
+}
+
+function toImageUrlArray(value: unknown): string[] {
+  if (Array.isArray(value))
+    return value.map(toStringValue).map(item => item.trim()).filter(Boolean)
+
+  if (typeof value !== 'string')
+    return []
+
+  const raw = value.trim()
+  if (!raw)
+    return []
+
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (Array.isArray(parsed))
+        return parsed.map(toStringValue).map(item => item.trim()).filter(Boolean)
+    }
+    catch {
+      // 后端应返回数组；这里仅兼容历史字符串数据。
+    }
+  }
+
+  return raw.split(',').map(item => item.trim()).filter(Boolean)
 }
 
 function resolveImageUrl(url: string) {

@@ -9,6 +9,7 @@ import {
   findCategoryByValue,
   getCategoryLevelOptionsFromCatalog,
   getFullCategoryPath,
+  getQualityImageUrls,
   getSelectedCategoryId,
   getTopCategoryOptionsFromCatalog,
   getVarietyOptionsFromCatalog,
@@ -39,6 +40,9 @@ const selectedCategoryPath = ref<string[]>([])
 const selectedVariety = ref(ALL_VALUE)
 const categoryStep = ref(0)
 const detailItem = ref<QualityImageItem>()
+const imagePreviewVisible = ref(false)
+const imagePreviewUrls = ref<string[]>([])
+const imagePreviewIndex = ref(0)
 let queryRequestId = 0
 const PAGE_SIZE = 20
 const DISABLE_MOCK_FALLBACK = { mockFallback: false } as const
@@ -346,19 +350,47 @@ function openDetail(item: QualityImageItem) {
 }
 
 function previewCardImage(item: QualityImageItem) {
+  previewQualityImages(item)
+}
+
+function previewQualityImages(item: QualityImageItem) {
+  const imageUrls = getQualityImageUrls(item)
   const imageUrl = getDetailImageUrl(item)
-  uni.previewImage({
-    urls: [imageUrl],
-    current: imageUrl,
-  })
+  openImagePreview(imageUrls, imageUrl)
 }
 
 function closeDetail() {
   detailItem.value = undefined
 }
 
+function openImagePreview(urls: string[], currentUrl: string) {
+  if (!urls.length)
+    return
+
+  imagePreviewUrls.value = urls
+  imagePreviewIndex.value = Math.max(0, urls.indexOf(currentUrl))
+  imagePreviewVisible.value = true
+}
+
+function closeImagePreview() {
+  imagePreviewVisible.value = false
+}
+
+function onImagePreviewChange(event: { detail?: { current?: number } }) {
+  const current = Number(event.detail?.current ?? 0)
+  imagePreviewIndex.value = Number.isFinite(current) ? current : 0
+}
+
+function switchPreviewImage(offset: number) {
+  const total = imagePreviewUrls.value.length
+  if (total <= 1)
+    return
+
+  imagePreviewIndex.value = (imagePreviewIndex.value + offset + total) % total
+}
+
 function getDetailImageUrl(item: QualityImageItem) {
-  return item.imageUrl || '/static/images/figma/detail/bag.png'
+  return getQualityImageUrls(item)[0] || '/static/images/figma/detail/bag.png'
 }
 
 function getCardDescription(item: QualityImageItem) {
@@ -968,6 +1000,55 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
           <text>保存图片</text>
         </button>
       </view>
+    </view>
+
+    <view
+      v-if="imagePreviewVisible"
+      class="image-preview-mask"
+      @click="closeImagePreview"
+    >
+      <button
+        class="image-preview-close"
+        hover-class="none"
+        @click.stop="closeImagePreview"
+      >
+        <view class="image-preview-close-icon" />
+      </button>
+      <swiper
+        class="image-preview-swiper"
+        :current="imagePreviewIndex"
+        circular
+        @change="onImagePreviewChange"
+        @click.stop
+      >
+        <swiper-item
+          v-for="imageUrl in imagePreviewUrls"
+          :key="imageUrl"
+        >
+          <image
+            class="image-preview-image"
+            :src="imageUrl"
+            mode="aspectFit"
+            @click.stop
+          />
+        </swiper-item>
+      </swiper>
+      <template v-if="imagePreviewUrls.length > 1">
+        <button
+          class="image-preview-nav image-preview-nav-prev"
+          hover-class="none"
+          @click.stop="switchPreviewImage(-1)"
+        >
+          <view class="image-preview-nav-icon image-preview-nav-icon-prev" />
+        </button>
+        <button
+          class="image-preview-nav image-preview-nav-next"
+          hover-class="none"
+          @click.stop="switchPreviewImage(1)"
+        >
+          <view class="image-preview-nav-icon image-preview-nav-icon-next" />
+        </button>
+      </template>
     </view>
   </view>
 </template>
@@ -1739,5 +1820,117 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .detail-save-icon {
   width: 40rpx;
   height: 40rpx;
+}
+
+.image-preview-mask {
+  position: fixed;
+  z-index: 999;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.image-preview-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview-close {
+  position: fixed;
+  z-index: 1002;
+  top: calc(70rpx + env(safe-area-inset-top));
+  right: 34rpx;
+  display: flex;
+  width: 72rpx;
+  height: 72rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.image-preview-close::after {
+  border: 0;
+}
+
+.image-preview-close-icon {
+  position: relative;
+  width: 30rpx;
+  height: 30rpx;
+}
+
+.image-preview-close-icon::before,
+.image-preview-close-icon::after {
+  position: absolute;
+  left: 14rpx;
+  top: 0;
+  width: 4rpx;
+  height: 30rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  content: "";
+}
+
+.image-preview-close-icon::before {
+  transform: rotate(45deg);
+}
+
+.image-preview-close-icon::after {
+  transform: rotate(-45deg);
+}
+
+.image-preview-nav {
+  position: fixed;
+  z-index: 1001;
+  top: 50%;
+  display: flex;
+  width: 86rpx;
+  height: 86rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-50%);
+}
+
+.image-preview-nav::after {
+  border: 0;
+}
+
+.image-preview-nav-prev {
+  left: 28rpx;
+}
+
+.image-preview-nav-next {
+  right: 28rpx;
+}
+
+.image-preview-nav-icon {
+  width: 24rpx;
+  height: 24rpx;
+  border-top: 5rpx solid #fff;
+  border-right: 5rpx solid #fff;
+}
+
+.image-preview-nav-icon-prev {
+  transform: translateX(5rpx) rotate(-135deg);
+}
+
+.image-preview-nav-icon-next {
+  transform: translateX(-5rpx) rotate(45deg);
 }
 </style>
