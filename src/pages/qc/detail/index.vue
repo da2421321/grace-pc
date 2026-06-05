@@ -8,6 +8,7 @@ const currentImageIndex = ref(0)
 const imagePreviewVisible = ref(false)
 const imagePreviewUrls = ref<string[]>([])
 const imagePreviewIndex = ref(0)
+const imagePreviewCloseTop = ref(52)
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
@@ -20,6 +21,9 @@ const navBarStyle = computed(() => ({
 const navBackStyle = computed(() => ({
   top: `${navMenuTop.value}px`,
   height: `${navMenuHeight.value}px`,
+}))
+const imagePreviewCloseStyle = computed(() => ({
+  top: `${imagePreviewCloseTop.value}px`,
 }))
 
 const detailImageUrls = computed(() => detailItem.value ? getQualityImageUrls(detailItem.value) : [])
@@ -53,6 +57,7 @@ function initNavBar() {
   try {
     const systemInfo = uni.getSystemInfoSync()
     const statusBarHeight = systemInfo.statusBarHeight || 0
+    const fallbackCloseTop = (statusBarHeight || 44) + uni.upx2px(18)
 
     // #ifdef MP-WEIXIN
     const menuButton = uni.getMenuButtonBoundingClientRect()
@@ -60,17 +65,23 @@ function initNavBar() {
     navMenuTop.value = menuButton.top
     navMenuHeight.value = menuButton.height
     navBarHeight.value = menuButton.bottom + navGap
+    if (menuButton.top > 0 && menuButton.height > 0 && menuButton.bottom > 0)
+      imagePreviewCloseTop.value = menuButton.bottom + uni.upx2px(16)
+    else
+      imagePreviewCloseTop.value = fallbackCloseTop
     return
     // #endif
 
     navMenuTop.value = statusBarHeight
     navMenuHeight.value = 44
     navBarHeight.value = statusBarHeight + 44
+    imagePreviewCloseTop.value = fallbackCloseTop
   }
   catch {
     navMenuTop.value = 0
     navMenuHeight.value = 44
     navBarHeight.value = 44
+    imagePreviewCloseTop.value = 44 + uni.upx2px(18)
   }
 }
 
@@ -223,11 +234,11 @@ function showSaveFailed(imageUrl: string) {
 
       <template v-if="detailItem">
         <view class="detail-product-scene">
-          <image
+          <!-- <image
             class="detail-product-shadow"
             src="/static/images/figma/detail/product-shadow.svg"
             mode="aspectFill"
-          />
+          /> -->
           <swiper
             class="detail-product-swiper"
             :current="currentImageIndex"
@@ -332,6 +343,7 @@ function showSaveFailed(imageUrl: string) {
       <button
         class="image-preview-close"
         hover-class="none"
+        :style="imagePreviewCloseStyle"
         @click.stop="closeImagePreview"
       >
         <view class="image-preview-close-icon" />
@@ -694,7 +706,6 @@ function showSaveFailed(imageUrl: string) {
 .image-preview-close {
   position: fixed;
   z-index: 1002;
-  top: calc(70rpx + env(safe-area-inset-top));
   right: 34rpx;
   display: flex;
   width: 72rpx;

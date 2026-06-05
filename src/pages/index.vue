@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { onLoad, onResize, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
+  fetchCategoryDetail,
   fetchCategories,
   fetchQualityImages,
   fetchVarieties,
@@ -14,6 +15,7 @@ import {
   getTopCategoryOptionsFromCatalog,
   getVarietyOptionsFromCatalog,
   type CatalogFilterOption,
+  type CategoryNode,
   type CategoryVarietyResponse,
   type QualityImageApiResponse,
   type QualityImageItem,
@@ -23,6 +25,23 @@ import { useUserStore } from '@/store/user'
 
 interface ContentChipOption extends CatalogFilterOption {
   kind: 'variety'
+}
+
+type UniPopupType =
+  | 'top'
+  | 'center'
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'message'
+  | 'dialog'
+  | 'share'
+type UniPopupExpose = {
+  open: (type?: UniPopupType) => void
+  close: () => void
+}
+type PopupChangeEvent = {
+  show: boolean
 }
 
 const userStore = useUserStore()
@@ -43,7 +62,13 @@ const detailItem = ref<QualityImageItem>()
 const imagePreviewVisible = ref(false)
 const imagePreviewUrls = ref<string[]>([])
 const imagePreviewIndex = ref(0)
+const imagePreviewCloseTop = ref(52)
+const categoryGuidePopup = ref<UniPopupExpose | null>(null)
+const categoryGuideLoading = ref(false)
+const categoryGuideDetail = ref<CategoryNode>()
+const categoryGuideImageIndex = ref(0)
 let queryRequestId = 0
+let categoryGuideRequestId = 0
 const PAGE_SIZE = 20
 const DISABLE_MOCK_FALLBACK = { mockFallback: false } as const
 const currentPage = ref(1)
@@ -103,6 +128,21 @@ const reportFabStyle = computed(() => reportFabReady.value
       bottom: 'auto',
     }
   : {})
+const imagePreviewCloseStyle = computed(() => ({
+  top: `${imagePreviewCloseTop.value}px`,
+}))
+const categoryGuideTitle = computed(() => categoryGuideDetail.value?.name || '')
+const categoryGuideDescription = computed(() => {
+  const description = categoryGuideDetail.value?.description?.trim()
+  if (description)
+    return description
+  return categoryGuideLoading.value ? '加载中...' : '暂无品类详情'
+})
+const categoryGuideImageUrls = computed(() => {
+  return (categoryGuideDetail.value?.imageUrls ?? []).filter(Boolean)
+})
+const categoryGuideShowNav = computed(() => categoryGuideImageUrls.value.length > 1)
+const categoryGuideEmptyText = computed(() => categoryGuideLoading.value ? '加载中...' : '暂无图片')
 
 onLoad(() => {
   try {
@@ -111,12 +151,14 @@ onLoad(() => {
   catch {
     statusBarHeight.value = 44
   }
+  syncImagePreviewClosePosition()
   initReportFabPosition()
   refreshUserProfile()
   load()
 })
 
 onResize(() => {
+  syncImagePreviewClosePosition()
   initReportFabPosition(true)
 })
 
@@ -387,6 +429,116 @@ function switchPreviewImage(offset: number) {
     return
 
   imagePreviewIndex.value = (imagePreviewIndex.value + offset + total) % total
+}
+
+function syncImagePreviewClosePosition() {
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    const fallbackCloseTop = (systemInfo.statusBarHeight || 44) + uni.upx2px(18)
+    let nextCloseTop = fallbackCloseTop
+
+    // #ifdef MP-WEIXIN
+    const menuButton = uni.getMenuButtonBoundingClientRect()
+    if (menuButton.top > 0 && menuButton.height > 0 && menuButton.bottom > 0)
+      nextCloseTop = menuButton.bottom + uni.upx2px(16)
+    // #endif
+
+    imagePreviewCloseTop.value = nextCloseTop
+  }
+  catch {
+    imagePreviewCloseTop.value = 44 + uni.upx2px(18)
+  }
+}
+
+function shouldShowCategoryGuide(option: CatalogFilterOption) {
+  if (option.value === ALL_VALUE)
+    return false
+  return Boolean(resolveCategoryGuideId(option))
+}
+
+function resolveCategoryGuideId(option: CatalogFilterOption) {
+  return option.categoryId || option.id || findCategoryByValue(catalog.value.categories, option.value)?.id || ''
+}
+
+function createCategoryGuideSeed(option: CatalogFilterOption): CategoryNode {
+  const pathNames = option.pathNames?.length
+    ? option.pathNames
+    : option.path
+      ? option.path.split('/').filter(Boolean)
+      : [option.label]
+
+  return {
+    id: resolveCategoryGuideId(option) || undefined,
+    code: option.code || '',
+    name: option.label,
+    description: option.description,
+    imageUrls: (option.imageUrls ?? []).filter(Boolean),
+    path: option.path || pathNames.join('/'),
+    pathIds: option.pathIds ?? [],
+    pathNames,
+    children: [],
+  }
+}
+
+async function openCategoryGuide(option: CatalogFilterOption) {
+  const categoryId = resolveCategoryGuideId(option)
+  if (!categoryId)
+    return
+
+  const requestId = ++categoryGuideRequestId
+  const seed = createCategoryGuideSeed(option)
+  categoryGuideDetail.value = seed
+  categoryGuideImageIndex.value = 0
+  categoryGuideLoading.value = true
+  await nextTick()
+  categoryGuidePopup.value?.open('center')
+
+  try {
+    const detail = await fetchCategoryDetail(categoryId, DISABLE_MOCK_FALLBACK)
+    if (requestId !== categoryGuideRequestId)
+      return
+    if (detail) {
+      categoryGuideDetail.value = {
+        ...seed,
+        ...detail,
+        name: detail.name || seed.name,
+        description: detail.description || seed.description,
+        imageUrls: detail.imageUrls?.length ? detail.imageUrls : seed.imageUrls,
+      }
+    }
+  }
+  finally {
+    if (requestId === categoryGuideRequestId)
+      categoryGuideLoading.value = false
+  }
+}
+
+function closeCategoryGuide() {
+  categoryGuideRequestId += 1
+  categoryGuidePopup.value?.close()
+}
+
+function onCategoryGuidePopupChange(event: PopupChangeEvent) {
+  if (event.show)
+    return
+
+  categoryGuideRequestId += 1
+  categoryGuideLoading.value = false
+  categoryGuideImageIndex.value = 0
+  categoryGuideDetail.value = undefined
+}
+
+function onCategoryGuideImageChange(event: { detail?: { current?: number } }) {
+  const current = Number(event.detail?.current ?? 0)
+  categoryGuideImageIndex.value = Number.isFinite(current) ? current : 0
+}
+
+function switchCategoryGuideImage(offset: number) {
+  const total = categoryGuideImageUrls.value.length
+  if (total <= 1)
+    return
+
+  categoryGuideImageIndex.value = (categoryGuideImageIndex.value + offset + total) % total
 }
 
 function getDetailImageUrl(item: QualityImageItem) {
@@ -721,16 +873,33 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
         :show-scrollbar="false"
       >
         <view class="top-tabs-inner">
-          <button
+          <view
             v-for="option in topTabs"
             :key="option.value"
-            :class="['top-tab', option.value === selectedTop ? 'top-tab-active' : '']"
-            hover-class="none"
-            @click="selectTop(option.value)"
+            class="top-tab-entry"
           >
-            <text>{{ option.label }}</text>
-            <view class="top-tab-line" />
-          </button>
+            <button
+              :class="['top-tab', option.value === selectedTop ? 'top-tab-active' : '']"
+              hover-class="none"
+              @click="selectTop(option.value)"
+            >
+              <text>{{ option.label }}</text>
+              <view class="top-tab-line" />
+            </button>
+            <button
+              v-if="shouldShowCategoryGuide(option)"
+              class="top-tab-help"
+              hover-class="none"
+              @click="openCategoryGuide(option)"
+            >
+              <uni-icons
+                class="help-uni-icon"
+                type="help"
+                size="18"
+                color="#B9C0CA"
+              />
+            </button>
+          </view>
         </view>
       </scroll-view>
 
@@ -779,22 +948,39 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
           >
             返回
           </button>
-          <button
+          <view
             v-for="option in categoryNavOptions"
             :key="option.value"
-            :class="[
-              'category-item',
-              option.value === (selectedCategoryPath[safeCategoryStep] ?? ALL_VALUE) ? 'category-item-active' : '',
-            ]"
-            hover-class="none"
-            @click="selectCategory(option.value)"
+            class="category-item-row"
           >
-            <view class="category-label-wrap">
-              <text class="category-label">
-                {{ option.label }}
-              </text>
-            </view>
-          </button>
+            <button
+              :class="[
+                'category-item',
+                option.value === (selectedCategoryPath[safeCategoryStep] ?? ALL_VALUE) ? 'category-item-active' : '',
+              ]"
+              hover-class="none"
+              @click="selectCategory(option.value)"
+            >
+              <view class="category-label-wrap">
+                <text class="category-label">
+                  {{ option.label }}
+                </text>
+              </view>
+            </button>
+            <button
+              v-if="shouldShowCategoryGuide(option)"
+              class="category-help"
+              hover-class="none"
+              @click="openCategoryGuide(option)"
+            >
+              <uni-icons
+                class="help-uni-icon"
+                type="help"
+                size="18"
+                color="#B9C0CA"
+              />
+            </button>
+          </view>
         </scroll-view>
 
         <view class="result-area">
@@ -900,6 +1086,94 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
         </view>
       </view>
     </view>
+
+    <uni-popup
+      ref="categoryGuidePopup"
+      type="center"
+      background-color="transparent"
+      mask-background-color="rgba(37, 38, 43, 0.4)"
+      :safe-area="false"
+      @change="onCategoryGuidePopupChange"
+    >
+      <view
+        v-if="categoryGuideDetail"
+        class="category-guide-popup"
+      >
+        <button
+          class="category-guide-close"
+          hover-class="none"
+          @click="closeCategoryGuide"
+        >
+          <view class="category-guide-close-icon" />
+        </button>
+
+        <view class="category-guide-head">
+          <text class="category-guide-title">
+            {{ categoryGuideTitle }}
+          </text>
+          <text class="category-guide-desc">
+            {{ categoryGuideDescription }}
+          </text>
+        </view>
+
+        <view class="category-guide-media-shell">
+          <view class="category-guide-media">
+            <swiper
+              v-if="categoryGuideImageUrls.length"
+              class="category-guide-swiper"
+              :current="categoryGuideImageIndex"
+              circular
+              @change="onCategoryGuideImageChange"
+            >
+              <swiper-item
+                v-for="imageUrl in categoryGuideImageUrls"
+                :key="imageUrl"
+              >
+                <image
+                  class="category-guide-image"
+                  :src="imageUrl"
+                  mode="aspectFit"
+                />
+              </swiper-item>
+            </swiper>
+            <view
+              v-else
+              class="category-guide-empty"
+            >
+              <text>{{ categoryGuideEmptyText }}</text>
+            </view>
+          </view>
+
+          <template v-if="categoryGuideShowNav">
+            <button
+              class="category-guide-nav category-guide-nav-prev"
+              hover-class="none"
+              @click="switchCategoryGuideImage(-1)"
+            >
+              <view class="category-guide-nav-icon category-guide-nav-icon-prev" />
+            </button>
+            <button
+              class="category-guide-nav category-guide-nav-next"
+              hover-class="none"
+              @click="switchCategoryGuideImage(1)"
+            >
+              <view class="category-guide-nav-icon category-guide-nav-icon-next" />
+            </button>
+          </template>
+        </view>
+
+        <view
+          v-if="categoryGuideImageUrls.length > 1"
+          class="category-guide-dots"
+        >
+          <view
+            v-for="(imageUrl, index) in categoryGuideImageUrls"
+            :key="`${imageUrl}-${index}`"
+            :class="['category-guide-dot', index === categoryGuideImageIndex ? 'category-guide-dot-active' : '']"
+          />
+        </view>
+      </view>
+    </uni-popup>
 
     <button
       v-if="canShowReportFab"
@@ -1010,6 +1284,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
       <button
         class="image-preview-close"
         hover-class="none"
+        :style="imagePreviewCloseStyle"
         @click.stop="closeImagePreview"
       >
         <view class="image-preview-close-icon" />
@@ -1227,6 +1502,13 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   padding: 36rpx 68rpx 0;
 }
 
+.top-tab-entry {
+  position: relative;
+  display: inline-block;
+  height: 77rpx;
+  overflow: visible;
+}
+
 .top-tab {
   position: relative;
   width: auto;
@@ -1261,6 +1543,24 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   display: block;
 }
 
+.top-tab-help {
+  position: absolute;
+  z-index: 2;
+  left: 100%;
+  top: 4rpx;
+  display: flex;
+  width: 32rpx;
+  height: 32rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  margin-left: 8rpx;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
+}
+
 .main-panel {
   display: flex;
   height: calc(100% - 113rpx);
@@ -1277,6 +1577,12 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   background: #f7f7f7;
 }
 
+.category-item-row {
+  position: relative;
+  width: 100%;
+  height: 100rpx;
+}
+
 .category-item {
   position: relative;
   z-index: 0;
@@ -1285,7 +1591,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   height: 100rpx;
   box-sizing: border-box;
   margin: 0;
-  padding: 0 20rpx 0 66rpx;
+  padding: 0 62rpx 0 66rpx;
   border-radius: 0;
   background: transparent;
   color: #000;
@@ -1339,6 +1645,33 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   background: #92e616;
   content: '';
   pointer-events: none;
+}
+
+.category-help {
+  position: absolute;
+  z-index: 2;
+  right: 14rpx;
+  top: 50%;
+  display: flex;
+  width: 32rpx;
+  height: 32rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.help-uni-icon {
+  display: block;
+  line-height: 1;
+}
+
+.top-tab-help .help-uni-icon {
+  transform: translateY(1rpx);
 }
 
 .category-back {
@@ -1621,12 +1954,16 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .retry-button::after,
 .load-more-retry::after,
 .top-tab::after,
+.top-tab-help::after,
 .category-item::after,
+.category-help::after,
 .product-chip::after,
 .image-card::after,
 .report-fab::after,
 .detail-back::after,
-.detail-save-button::after {
+.detail-save-button::after,
+.category-guide-close::after,
+.category-guide-nav::after {
   border: 0;
 }
 
@@ -1820,6 +2157,174 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .detail-save-icon {
   width: 40rpx;
   height: 40rpx;
+}
+
+.category-guide-popup {
+  position: relative;
+  width: 720rpx;
+  box-sizing: border-box;
+  padding: 30rpx 16rpx 22rpx;
+  border-radius: 28rpx;
+  background: #fff;
+  box-shadow: 0 18rpx 44rpx rgba(37, 38, 43, 0.14);
+}
+
+.category-guide-close {
+  position: absolute;
+  z-index: 3;
+  top: 18rpx;
+  right: 18rpx;
+  display: flex;
+  width: 64rpx;
+  height: 64rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: #f3f5f8;
+}
+
+.category-guide-close-icon {
+  position: relative;
+  width: 28rpx;
+  height: 28rpx;
+}
+
+.category-guide-close-icon::before,
+.category-guide-close-icon::after {
+  position: absolute;
+  left: 12rpx;
+  top: 0;
+  width: 4rpx;
+  height: 28rpx;
+  border-radius: 999rpx;
+  background: #9aa0ae;
+  content: '';
+}
+
+.category-guide-close-icon::before {
+  transform: rotate(45deg);
+}
+
+.category-guide-close-icon::after {
+  transform: rotate(-45deg);
+}
+
+.category-guide-head {
+  padding: 2rpx 86rpx 0 0;
+}
+
+.category-guide-media-shell {
+  position: relative;
+  margin-top: 28rpx;
+  padding: 0 4rpx;
+}
+
+.category-guide-media {
+  position: relative;
+  height: 530rpx;
+  overflow: hidden;
+  border-radius: 24rpx;
+  background: #f6f8fb;
+}
+
+.category-guide-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.category-guide-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.category-guide-empty {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: #9aa0ae;
+  font-size: 26rpx;
+}
+
+.category-guide-nav {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: flex;
+  width: 54rpx;
+  height: 54rpx;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: #fff;
+  box-shadow: 0 6rpx 20rpx rgba(37, 38, 43, 0.12);
+  transform: translateY(-50%);
+}
+
+.category-guide-nav-prev {
+  left: 0;
+}
+
+.category-guide-nav-next {
+  right: 0;
+}
+
+.category-guide-nav-icon {
+  width: 16rpx;
+  height: 16rpx;
+  border-top: 3rpx solid #5f6572;
+  border-right: 3rpx solid #5f6572;
+}
+
+.category-guide-nav-icon-prev {
+  transform: rotate(-135deg);
+}
+
+.category-guide-nav-icon-next {
+  transform: rotate(45deg);
+}
+
+.category-guide-dots {
+  display: flex;
+  margin-top: 18rpx;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.category-guide-dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: #d8dce6;
+}
+
+.category-guide-dot-active {
+  background: #92e616;
+}
+
+.category-guide-title {
+  display: block;
+  color: #1f2d3d;
+  font-size: 52rpx;
+  font-weight: 700;
+  line-height: 60rpx;
+}
+
+.category-guide-desc {
+  display: block;
+  margin-top: 22rpx;
+  color: #4f6275;
+  font-size: 28rpx;
+  line-height: 46rpx;
+  white-space: pre-wrap;
 }
 
 .image-preview-mask {

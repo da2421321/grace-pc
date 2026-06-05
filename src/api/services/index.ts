@@ -289,6 +289,8 @@ export interface PcQualityCategoryNode {
   parentId?: string | number
   code: string
   name: string
+  description?: string
+  imageUrls?: string[]
   path: string
   pathIds?: Array<string | number>
   pathNames?: string[]
@@ -558,6 +560,12 @@ export class Api<SecurityDataType extends unknown> {
         path: '/front/zj/qc/categories',
         method: 'GET',
         query,
+        ...params,
+      }),
+    categoryDetail: (categoryId: ApiLongId, params: RequestParams = {}) =>
+      this.http.request<PcQualityCategoryNode>({
+        path: `/front/zj/qc/categories/${categoryId}`,
+        method: 'GET',
         ...params,
       }),
     varieties: (

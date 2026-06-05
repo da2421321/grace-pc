@@ -33,6 +33,8 @@ export interface CatalogFilterOption extends FilterOption {
   path?: string
   pathIds?: string[]
   pathNames?: string[]
+  description?: string
+  imageUrls?: string[]
   categoryId?: string
   varietyId?: string
   varietyCode?: string
@@ -55,6 +57,8 @@ export interface CategoryNode {
   parentId?: string
   code: string
   name: string
+  description?: string
+  imageUrls?: string[]
   path: string
   pathIds: string[]
   pathNames: string[]
@@ -282,6 +286,23 @@ export async function fetchCategories(query?: CategoryQuery, options?: FetchData
   return { items: parent?.children ?? [] }
 }
 
+export async function fetchCategoryDetail(categoryId: string | number, options?: FetchDataOptions): Promise<CategoryNode | undefined> {
+  try {
+    const response = await apis.zjQc.categoryDetail(categoryId as `${number}`)
+    const payload = unwrapData<CategoryNode>(response)
+    if (payload)
+      return normalizeCategoryNode(payload)
+  }
+  catch {
+    // 本地预览或后端未部署时继续使用本地兜底数据。
+  }
+
+  if (!shouldUseMockFallback(options))
+    return undefined
+
+  return findCategoryNodeById(buildMockCatalog().categories, categoryId)
+}
+
 export async function fetchVarieties(query?: VarietyQuery, options?: FetchDataOptions): Promise<QualityPageResponse<VarietyOption>> {
   try {
     const response = await apis.zjQc.varieties(cleanVarietyQuery(query))
@@ -420,6 +441,8 @@ export function getQualityImageUrls(item: QualityImageItem, fallback = '/static/
 type CategoryNodeSource = Partial<Omit<CategoryNode, 'children' | 'pathIds' | 'pathNames' | 'id' | 'parentId' | 'level'>> & {
   id?: unknown
   parentId?: unknown
+  description?: unknown
+  imageUrls?: unknown
   pathIds?: unknown
   pathNames?: unknown
   level?: unknown
@@ -447,6 +470,8 @@ function normalizeCategoryNode(item: CategoryNodeSource): CategoryNode {
     parentId,
     code: toStringValue(item.code) || id || name,
     name,
+    description: toStringValue(item.description) || undefined,
+    imageUrls: normalizeImageUrls(item.imageUrls),
     path: toStringValue(item.path) || normalizedPathNames.join('/'),
     pathIds: pathIds.length ? pathIds : (id ? [id] : []),
     pathNames: normalizedPathNames,
@@ -643,6 +668,8 @@ function buildMockCategories(items: QualityImageItem[]): CategoryNode[] {
           id,
           code: id,
           name,
+          description: item.description,
+          imageUrls: item.imageUrls,
           path: pathNames.join('/'),
           pathIds,
           pathNames,
@@ -816,6 +843,8 @@ function toCategoryFilterOption(node: CategoryNode): CatalogFilterOption {
     path: node.path,
     pathIds: node.pathIds,
     pathNames: node.pathNames,
+    description: node.description,
+    imageUrls: node.imageUrls,
     categoryId: node.id,
   }
 }
@@ -850,6 +879,18 @@ function categoryValueMatches(node: CategoryNode, value: string) {
     || node.path === value
     || node.code === value
     || node.name === value
+}
+
+function findCategoryNodeById(categories: CategoryNode[], categoryId: string | number): CategoryNode | undefined {
+  const value = String(categoryId)
+  for (const category of categories) {
+    if (category.id === value)
+      return category
+    const child = findCategoryNodeById(category.children, value)
+    if (child)
+      return child
+  }
+  return undefined
 }
 
 export function buildReportCategoryPath(selectedTop: string, selectedCategoryPath: string[]): string {
