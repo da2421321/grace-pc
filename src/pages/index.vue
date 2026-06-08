@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { onLoad, onResize, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+import { onLoad, onResize, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import {
   ALL_VALUE,
   fetchCategoryDetail,
@@ -69,6 +69,7 @@ const categoryGuideDetail = ref<CategoryNode>()
 const categoryGuideImageIndex = ref(0)
 let queryRequestId = 0
 let categoryGuideRequestId = 0
+let hasInitialLoadFinished = false
 const PAGE_SIZE = 20
 const DISABLE_MOCK_FALLBACK = { mockFallback: false } as const
 const currentPage = ref(1)
@@ -157,6 +158,12 @@ onLoad(() => {
   load()
 })
 
+onShow(() => {
+  if (!hasInitialLoadFinished)
+    return
+  void refreshCurrentCatalogState()
+})
+
 onResize(() => {
   syncImagePreviewClosePosition()
   initReportFabPosition(true)
@@ -201,6 +208,7 @@ async function load() {
   finally {
     if (requestId === queryRequestId)
       loading.value = false
+    hasInitialLoadFinished = true
   }
 }
 
@@ -292,9 +300,11 @@ async function loadMoreResults() {
   await loadResults(currentPage.value + 1, true)
 }
 
-async function ensureCategoryChildren(value: string) {
+async function ensureCategoryChildren(value: string, force = false) {
   const node = findCategoryByValue(catalog.value.categories, value)
-  if (!node?.id || node.leaf || node.children.length > 0)
+  if (!node?.id)
+    return
+  if (!force && (node.leaf || node.children.length > 0))
     return
 
   const response = await fetchCategories({ parentId: node.id }, DISABLE_MOCK_FALLBACK)
@@ -305,6 +315,77 @@ async function ensureCategoryChildren(value: string) {
     ...catalog.value,
     categories: [...catalog.value.categories],
   }
+}
+
+async function refreshCategoryTree(topValue = selectedTop.value, categoryPath = selectedCategoryPath.value) {
+  const response = await fetchCategories(undefined, DISABLE_MOCK_FALLBACK)
+  catalog.value = {
+    ...catalog.value,
+    categories: response.items,
+  }
+
+  if (!topValue || topValue === ALL_VALUE)
+    return
+
+  if (!findCategoryByValue(catalog.value.categories, topValue))
+    return
+
+  await ensureCategoryChildren(topValue, true)
+
+  for (const value of categoryPath) {
+    if (!value || value === ALL_VALUE)
+      break
+    if (!findCategoryByValue(catalog.value.categories, value))
+      break
+    await ensureCategoryChildren(value, true)
+  }
+}
+
+function matchesCategoryValue(node: CategoryNode, value: string) {
+  return node.id === value
+    || node.path === value
+    || node.code === value
+    || node.name === value
+}
+
+function normalizeCategorySelection() {
+  if (selectedTop.value === ALL_VALUE) {
+    selectedCategoryPath.value = []
+    categoryStep.value = 0
+    return
+  }
+
+  const topNode = findCategoryByValue(catalog.value.categories, selectedTop.value)
+  if (!topNode) {
+    selectedTop.value = ALL_VALUE
+    selectedCategoryPath.value = []
+    selectedVariety.value = ALL_VALUE
+    categoryStep.value = 0
+    return
+  }
+
+  const nextPath: string[] = []
+  let nodes = topNode.children ?? []
+  for (const value of selectedCategoryPath.value) {
+    const matched = nodes.find(node => matchesCategoryValue(node, value))
+    if (!matched)
+      break
+    nextPath.push(value)
+    nodes = matched.children ?? []
+  }
+
+  if (nextPath.length !== selectedCategoryPath.value.length)
+    selectedVariety.value = ALL_VALUE
+
+  selectedCategoryPath.value = nextPath
+  categoryStep.value = Math.min(categoryStep.value, nextPath.length)
+}
+
+async function refreshCurrentCatalogState() {
+  await refreshCategoryTree()
+  normalizeCategorySelection()
+  await refreshVarietiesForSelection()
+  await loadResults()
 }
 
 async function refreshVarietiesForSelection() {
@@ -335,26 +416,59 @@ async function applySearch() {
 }
 
 async function selectTop(value: string) {
+  await refreshCategoryTree(value, [])
+  if (value !== ALL_VALUE && !findCategoryByValue(catalog.value.categories, value)) {
+    normalizeCategorySelection()
+    uni.showToast({ title: '该品类已停用', icon: 'none' })
+    await refreshVarietiesForSelection()
+    await loadResults()
+    return
+  }
+
   selectedTop.value = value
   selectedCategoryPath.value = []
   selectedVariety.value = ALL_VALUE
   categoryStep.value = 0
-  if (value !== ALL_VALUE)
-    await ensureCategoryChildren(value)
   await refreshVarietiesForSelection()
   await loadResults()
 }
 
 async function selectCategory(value: string) {
   const step = safeCategoryStep.value
+  const parentValue = step === 0 ? selectedTop.value : selectedCategoryPath.value[step - 1]
+  if (parentValue && parentValue !== ALL_VALUE)
+    await ensureCategoryChildren(parentValue, true)
+
+  if (value !== ALL_VALUE) {
+    const parentNode = step === 0
+      ? findCategoryByValue(catalog.value.categories, selectedTop.value)
+      : findCategoryByValue(catalog.value.categories, selectedCategoryPath.value[step - 1])
+    const currentNodes = parentNode?.children ?? []
+    if (!currentNodes.some(node => matchesCategoryValue(node, value))) {
+      selectedCategoryPath.value = selectedCategoryPath.value.slice(0, step)
+      selectedVariety.value = ALL_VALUE
+      categoryStep.value = Math.min(categoryStep.value, selectedCategoryPath.value.length)
+      normalizeCategorySelection()
+      uni.showToast({ title: '该品类已停用', icon: 'none' })
+      await refreshVarietiesForSelection()
+      await loadResults()
+      return
+    }
+  }
+
   const next = selectedCategoryPath.value.slice(0, step)
   if (value !== ALL_VALUE)
     next[step] = value
   selectedCategoryPath.value = next
   selectedVariety.value = ALL_VALUE
   if (value !== ALL_VALUE)
-    await ensureCategoryChildren(value)
-  const nextLevels = getCategoryLevelOptionsFromCatalog(catalog.value.categories, selectedTop.value, next)
+    await ensureCategoryChildren(value, true)
+  normalizeCategorySelection()
+  const nextLevels = getCategoryLevelOptionsFromCatalog(
+    catalog.value.categories,
+    selectedTop.value,
+    selectedCategoryPath.value,
+  )
   if (value !== ALL_VALUE && step < nextLevels.length - 1)
     categoryStep.value = step + 1
   await refreshVarietiesForSelection()
@@ -365,9 +479,13 @@ async function goBackCategoryLevel() {
   if (categoryStep.value <= 0)
     return
   const nextStep = categoryStep.value - 1
+  const parentValue = nextStep === 0 ? selectedTop.value : selectedCategoryPath.value[nextStep - 1]
+  if (parentValue && parentValue !== ALL_VALUE)
+    await ensureCategoryChildren(parentValue, true)
   selectedCategoryPath.value = selectedCategoryPath.value.slice(0, nextStep + 1)
   selectedVariety.value = ALL_VALUE
   categoryStep.value = nextStep
+  normalizeCategorySelection()
   await refreshVarietiesForSelection()
   await loadResults()
 }
@@ -1499,7 +1617,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   gap: 58rpx;
   min-width: 100%;
   box-sizing: border-box;
-  padding: 36rpx 68rpx 0;
+  padding: 36rpx 68rpx 0 38rpx;
 }
 
 .top-tab-entry {
@@ -1569,7 +1687,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .category-side {
-  width: 180rpx;
+  width: 200rpx;
   height: 100%;
   min-height: 0;
   flex-shrink: 0;
@@ -1586,12 +1704,13 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .category-item {
   position: relative;
   z-index: 0;
-  display: block;
+  display: flex;
   width: 100%;
   height: 100rpx;
+  align-items: center;
   box-sizing: border-box;
   margin: 0;
-  padding: 0 62rpx 0 66rpx;
+  padding: 0 52rpx 0 38rpx;
   border-radius: 0;
   background: transparent;
   color: #000;
@@ -1623,11 +1742,15 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   position: relative;
   z-index: 1;
   display: inline-block;
-  line-height: 100rpx;
+  max-width: 90rpx;
+  line-height: 32rpx;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .category-label {
   display: inline;
+  white-space: normal;
 }
 
 .category-item-active .category-label-wrap::after {
@@ -1635,7 +1758,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   z-index: 1;
   left: 0;
   right: 0;
-  bottom: 16rpx;
+  bottom: -8rpx;
   display: block;
   width: 100%;
   height: 10rpx;
@@ -1650,7 +1773,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .category-help {
   position: absolute;
   z-index: 2;
-  right: 14rpx;
+  right: 26rpx;
   top: 50%;
   display: flex;
   width: 32rpx;
