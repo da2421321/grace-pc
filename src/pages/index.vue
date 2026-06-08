@@ -132,6 +132,14 @@ const reportFabStyle = computed(() => reportFabReady.value
 const imagePreviewCloseStyle = computed(() => ({
   top: `${imagePreviewCloseTop.value}px`,
 }))
+const imagePreviewCounterText = computed(() => {
+  const total = imagePreviewUrls.value.length
+  if (!total)
+    return ''
+
+  const current = Math.min(Math.max(imagePreviewIndex.value, 0), total - 1) + 1
+  return `${current}/${total}`
+})
 const categoryGuideTitle = computed(() => categoryGuideDetail.value?.name || '')
 const categoryGuideDescription = computed(() => {
   const description = categoryGuideDetail.value?.description?.trim()
@@ -1407,6 +1415,12 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
       >
         <view class="image-preview-close-icon" />
       </button>
+      <view
+        v-if="imagePreviewCounterText"
+        class="image-preview-counter"
+      >
+        {{ imagePreviewCounterText }}
+      </view>
       <swiper
         class="image-preview-swiper"
         :current="imagePreviewIndex"
@@ -2490,6 +2504,26 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .image-preview-close::after {
   border: 0;
+}
+
+.image-preview-counter {
+  position: fixed;
+  z-index: 1001;
+  left: 50%;
+  bottom: calc(72rpx + env(safe-area-inset-bottom));
+  min-width: 96rpx;
+  height: 72rpx;
+  box-sizing: border-box;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.38);
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 500;
+  line-height: 72rpx;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .image-preview-close-icon {

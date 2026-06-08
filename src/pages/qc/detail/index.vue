@@ -25,10 +25,26 @@ const navBackStyle = computed(() => ({
 const imagePreviewCloseStyle = computed(() => ({
   top: `${imagePreviewCloseTop.value}px`,
 }))
+const imagePreviewCounterText = computed(() => {
+  const total = imagePreviewUrls.value.length
+  if (!total)
+    return ''
+
+  const current = Math.min(Math.max(imagePreviewIndex.value, 0), total - 1) + 1
+  return `${current}/${total}`
+})
 
 const detailImageUrls = computed(() => detailItem.value ? getQualityImageUrls(detailItem.value) : [])
 const currentDetailImageUrl = computed(() => {
   return detailImageUrls.value[currentImageIndex.value] || detailImageUrls.value[0] || '/static/images/figma/detail/bag.png'
+})
+const detailImageCounterText = computed(() => {
+  const total = detailImageUrls.value.length
+  if (!total)
+    return ''
+
+  const current = Math.min(Math.max(currentImageIndex.value, 0), total - 1) + 1
+  return `${current}/${total}`
 })
 
 onMounted(() => {
@@ -273,6 +289,12 @@ function showSaveFailed(imageUrl: string) {
               <view class="detail-image-nav-icon detail-image-nav-icon-next" />
             </button>
           </template>
+          <view
+            v-if="detailImageCounterText"
+            class="detail-image-counter"
+          >
+            {{ detailImageCounterText }}
+          </view>
         </view>
       </template>
     </view>
@@ -348,6 +370,12 @@ function showSaveFailed(imageUrl: string) {
       >
         <view class="image-preview-close-icon" />
       </button>
+      <view
+        v-if="imagePreviewCounterText"
+        class="image-preview-counter"
+      >
+        {{ imagePreviewCounterText }}
+      </view>
       <swiper
         class="image-preview-swiper"
         :current="imagePreviewIndex"
@@ -515,6 +543,26 @@ function showSaveFailed(imageUrl: string) {
 
 .detail-image-nav-icon-next {
   transform: translateX(-4rpx) rotate(45deg);
+}
+
+.detail-image-counter {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 8rpx;
+  min-width: 96rpx;
+  height: 56rpx;
+  box-sizing: border-box;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  background: rgba(37, 38, 43, 0.48);
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 56rpx;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .detail-product-shadow {
@@ -721,6 +769,26 @@ function showSaveFailed(imageUrl: string) {
 
 .image-preview-close::after {
   border: 0;
+}
+
+.image-preview-counter {
+  position: fixed;
+  z-index: 1001;
+  left: 50%;
+  bottom: calc(72rpx + env(safe-area-inset-bottom));
+  min-width: 96rpx;
+  height: 72rpx;
+  box-sizing: border-box;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.38);
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 500;
+  line-height: 72rpx;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .image-preview-close-icon {
