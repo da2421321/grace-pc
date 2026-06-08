@@ -1687,7 +1687,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .category-side {
-  width: 200rpx;
+  width: 180rpx;
   height: 100%;
   min-height: 0;
   flex-shrink: 0;
@@ -1935,8 +1935,8 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .image-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 42rpx 24rpx;
-  padding: 17rpx 52rpx 44rpx 26rpx;
+  gap: 34rpx 20rpx;
+  padding: 17rpx 24rpx 44rpx;
 }
 
 .load-more-state {
@@ -1963,7 +1963,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .image-card {
-  width: 234rpx;
+  width: calc((100% - 20rpx) / 2);
   overflow: visible;
   margin: 0;
   padding: 0;
@@ -1977,8 +1977,8 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .image-wrap {
   position: relative;
   display: flex;
-  width: 234rpx;
-  height: 282rpx;
+  width: 100%;
+  height: 248rpx;
   align-items: center;
   justify-content: center;
   overflow: hidden;
