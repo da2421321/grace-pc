@@ -5,10 +5,6 @@ import { fetchQualityImageDetail, getFullCategoryPath, getQualityImageUrls, type
 
 const detailItem = ref<QualityImageItem>()
 const currentImageIndex = ref(0)
-const imagePreviewVisible = ref(false)
-const imagePreviewUrls = ref<string[]>([])
-const imagePreviewIndex = ref(0)
-const imagePreviewCloseTop = ref(52)
 const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
@@ -22,17 +18,6 @@ const navBackStyle = computed(() => ({
   top: `${navMenuTop.value}px`,
   height: `${navMenuHeight.value}px`,
 }))
-const imagePreviewCloseStyle = computed(() => ({
-  top: `${imagePreviewCloseTop.value}px`,
-}))
-const imagePreviewCounterText = computed(() => {
-  const total = imagePreviewUrls.value.length
-  if (!total)
-    return ''
-
-  const current = Math.min(Math.max(imagePreviewIndex.value, 0), total - 1) + 1
-  return `${current}/${total}`
-})
 
 const detailImageUrls = computed(() => detailItem.value ? getQualityImageUrls(detailItem.value) : [])
 const currentDetailImageUrl = computed(() => {
@@ -73,7 +58,6 @@ function initNavBar() {
   try {
     const systemInfo = uni.getSystemInfoSync()
     const statusBarHeight = systemInfo.statusBarHeight || 0
-    const fallbackCloseTop = (statusBarHeight || 44) + uni.upx2px(18)
 
     // #ifdef MP-WEIXIN
     const menuButton = uni.getMenuButtonBoundingClientRect()
@@ -81,23 +65,17 @@ function initNavBar() {
     navMenuTop.value = menuButton.top
     navMenuHeight.value = menuButton.height
     navBarHeight.value = menuButton.bottom + navGap
-    if (menuButton.top > 0 && menuButton.height > 0 && menuButton.bottom > 0)
-      imagePreviewCloseTop.value = menuButton.bottom + uni.upx2px(16)
-    else
-      imagePreviewCloseTop.value = fallbackCloseTop
     return
     // #endif
 
     navMenuTop.value = statusBarHeight
     navMenuHeight.value = 44
     navBarHeight.value = statusBarHeight + 44
-    imagePreviewCloseTop.value = fallbackCloseTop
   }
   catch {
     navMenuTop.value = 0
     navMenuHeight.value = 44
     navBarHeight.value = 44
-    imagePreviewCloseTop.value = 44 + uni.upx2px(18)
   }
 }
 
@@ -137,29 +115,14 @@ function switchDetailImage(offset: number) {
 }
 
 function openImagePreview(urls: string[], currentUrl: string) {
-  if (!urls.length)
+  const previewUrls = urls.filter(Boolean)
+  if (!previewUrls.length)
     return
 
-  imagePreviewUrls.value = urls
-  imagePreviewIndex.value = Math.max(0, urls.indexOf(currentUrl))
-  imagePreviewVisible.value = true
-}
-
-function closeImagePreview() {
-  imagePreviewVisible.value = false
-}
-
-function onImagePreviewChange(event: { detail?: { current?: number } }) {
-  const current = Number(event.detail?.current ?? 0)
-  imagePreviewIndex.value = Number.isFinite(current) ? current : 0
-}
-
-function switchPreviewImage(offset: number) {
-  const total = imagePreviewUrls.value.length
-  if (total <= 1)
-    return
-
-  imagePreviewIndex.value = (imagePreviewIndex.value + offset + total) % total
+  uni.previewImage({
+    urls: previewUrls,
+    current: previewUrls.includes(currentUrl) ? currentUrl : previewUrls[0],
+  })
 }
 
 function saveDetailImage(item: QualityImageItem) {
@@ -357,61 +320,6 @@ function showSaveFailed(imageUrl: string) {
       </button>
     </view>
 
-    <view
-      v-if="imagePreviewVisible"
-      class="image-preview-mask"
-      @click="closeImagePreview"
-    >
-      <button
-        class="image-preview-close"
-        hover-class="none"
-        :style="imagePreviewCloseStyle"
-        @click.stop="closeImagePreview"
-      >
-        <view class="image-preview-close-icon" />
-      </button>
-      <view
-        v-if="imagePreviewCounterText"
-        class="image-preview-counter"
-      >
-        {{ imagePreviewCounterText }}
-      </view>
-      <swiper
-        class="image-preview-swiper"
-        :current="imagePreviewIndex"
-        circular
-        @change="onImagePreviewChange"
-        @click.stop
-      >
-        <swiper-item
-          v-for="imageUrl in imagePreviewUrls"
-          :key="imageUrl"
-        >
-          <image
-            class="image-preview-image"
-            :src="imageUrl"
-            mode="aspectFit"
-            @click.stop
-          />
-        </swiper-item>
-      </swiper>
-      <template v-if="imagePreviewUrls.length > 1">
-        <button
-          class="image-preview-nav image-preview-nav-prev"
-          hover-class="none"
-          @click.stop="switchPreviewImage(-1)"
-        >
-          <view class="image-preview-nav-icon image-preview-nav-icon-prev" />
-        </button>
-        <button
-          class="image-preview-nav image-preview-nav-next"
-          hover-class="none"
-          @click.stop="switchPreviewImage(1)"
-        >
-          <view class="image-preview-nav-icon image-preview-nav-icon-next" />
-        </button>
-      </template>
-    </view>
   </view>
 </template>
 
@@ -730,134 +638,4 @@ function showSaveFailed(imageUrl: string) {
   border: 0;
 }
 
-.image-preview-mask {
-  position: fixed;
-  z-index: 999;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.92);
-}
-
-.image-preview-swiper {
-  width: 100%;
-  height: 100%;
-}
-
-.image-preview-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.image-preview-close {
-  position: fixed;
-  z-index: 1002;
-  right: 34rpx;
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.image-preview-close::after {
-  border: 0;
-}
-
-.image-preview-counter {
-  position: fixed;
-  z-index: 1001;
-  left: 50%;
-  bottom: calc(72rpx + env(safe-area-inset-bottom));
-  min-width: 96rpx;
-  height: 72rpx;
-  box-sizing: border-box;
-  padding: 0 24rpx;
-  border-radius: 999rpx;
-  background: rgba(0, 0, 0, 0.38);
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 500;
-  line-height: 72rpx;
-  text-align: center;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-.image-preview-close-icon {
-  position: relative;
-  width: 30rpx;
-  height: 30rpx;
-}
-
-.image-preview-close-icon::before,
-.image-preview-close-icon::after {
-  position: absolute;
-  left: 14rpx;
-  top: 0;
-  width: 4rpx;
-  height: 30rpx;
-  border-radius: 999rpx;
-  background: #fff;
-  content: "";
-}
-
-.image-preview-close-icon::before {
-  transform: rotate(45deg);
-}
-
-.image-preview-close-icon::after {
-  transform: rotate(-45deg);
-}
-
-.image-preview-nav {
-  position: fixed;
-  z-index: 1001;
-  top: 50%;
-  display: flex;
-  width: 86rpx;
-  height: 86rpx;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
-  transform: translateY(-50%);
-}
-
-.image-preview-nav::after {
-  border: 0;
-}
-
-.image-preview-nav-prev {
-  left: 28rpx;
-}
-
-.image-preview-nav-next {
-  right: 28rpx;
-}
-
-.image-preview-nav-icon {
-  width: 24rpx;
-  height: 24rpx;
-  border-top: 5rpx solid #fff;
-  border-right: 5rpx solid #fff;
-}
-
-.image-preview-nav-icon-prev {
-  transform: translateX(5rpx) rotate(-135deg);
-}
-
-.image-preview-nav-icon-next {
-  transform: translateX(-5rpx) rotate(45deg);
-}
 </style>

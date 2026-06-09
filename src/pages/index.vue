@@ -59,10 +59,6 @@ const selectedCategoryPath = ref<string[]>([])
 const selectedVariety = ref(ALL_VALUE)
 const categoryStep = ref(0)
 const detailItem = ref<QualityImageItem>()
-const imagePreviewVisible = ref(false)
-const imagePreviewUrls = ref<string[]>([])
-const imagePreviewIndex = ref(0)
-const imagePreviewCloseTop = ref(52)
 const categoryGuidePopup = ref<UniPopupExpose | null>(null)
 const categoryGuideLoading = ref(false)
 const categoryGuideDetail = ref<CategoryNode>()
@@ -131,17 +127,6 @@ const reportFabStyle = computed(() => reportFabReady.value
       bottom: 'auto',
     }
   : {})
-const imagePreviewCloseStyle = computed(() => ({
-  top: `${imagePreviewCloseTop.value}px`,
-}))
-const imagePreviewCounterText = computed(() => {
-  const total = imagePreviewUrls.value.length
-  if (!total)
-    return ''
-
-  const current = Math.min(Math.max(imagePreviewIndex.value, 0), total - 1) + 1
-  return `${current}/${total}`
-})
 const categoryGuideTitle = computed(() => categoryGuideDetail.value?.name || '')
 const categoryGuideDescription = computed(() => {
   const description = categoryGuideDetail.value?.description?.trim()
@@ -173,7 +158,6 @@ onLoad(() => {
   catch {
     statusBarHeight.value = 44
   }
-  syncImagePreviewClosePosition()
   initReportFabPosition()
   refreshUserProfile()
   load()
@@ -186,7 +170,6 @@ onShow(() => {
 })
 
 onResize(() => {
-  syncImagePreviewClosePosition()
   initReportFabPosition(true)
 })
 
@@ -545,48 +528,14 @@ function closeDetail() {
 }
 
 function openImagePreview(urls: string[], currentUrl: string) {
-  if (!urls.length)
+  const previewUrls = urls.filter(Boolean)
+  if (!previewUrls.length)
     return
 
-  imagePreviewUrls.value = urls
-  imagePreviewIndex.value = Math.max(0, urls.indexOf(currentUrl))
-  imagePreviewVisible.value = true
-}
-
-function closeImagePreview() {
-  imagePreviewVisible.value = false
-}
-
-function onImagePreviewChange(event: { detail?: { current?: number } }) {
-  const current = Number(event.detail?.current ?? 0)
-  imagePreviewIndex.value = Number.isFinite(current) ? current : 0
-}
-
-function switchPreviewImage(offset: number) {
-  const total = imagePreviewUrls.value.length
-  if (total <= 1)
-    return
-
-  imagePreviewIndex.value = (imagePreviewIndex.value + offset + total) % total
-}
-
-function syncImagePreviewClosePosition() {
-  try {
-    const systemInfo = uni.getSystemInfoSync()
-    const fallbackCloseTop = (systemInfo.statusBarHeight || 44) + uni.upx2px(18)
-    let nextCloseTop = fallbackCloseTop
-
-    // #ifdef MP-WEIXIN
-    const menuButton = uni.getMenuButtonBoundingClientRect()
-    if (menuButton.top > 0 && menuButton.height > 0 && menuButton.bottom > 0)
-      nextCloseTop = menuButton.bottom + uni.upx2px(16)
-    // #endif
-
-    imagePreviewCloseTop.value = nextCloseTop
-  }
-  catch {
-    imagePreviewCloseTop.value = 44 + uni.upx2px(18)
-  }
+  uni.previewImage({
+    urls: previewUrls,
+    current: previewUrls.includes(currentUrl) ? currentUrl : previewUrls[0],
+  })
 }
 
 function shouldShowCategoryGuide(option: CatalogFilterOption) {
@@ -1427,61 +1376,6 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
       </view>
     </view>
 
-    <view
-      v-if="imagePreviewVisible"
-      class="image-preview-mask"
-      @click="closeImagePreview"
-    >
-      <button
-        class="image-preview-close"
-        hover-class="none"
-        :style="imagePreviewCloseStyle"
-        @click.stop="closeImagePreview"
-      >
-        <view class="image-preview-close-icon" />
-      </button>
-      <view
-        v-if="imagePreviewCounterText"
-        class="image-preview-counter"
-      >
-        {{ imagePreviewCounterText }}
-      </view>
-      <swiper
-        class="image-preview-swiper"
-        :current="imagePreviewIndex"
-        circular
-        @change="onImagePreviewChange"
-        @click.stop
-      >
-        <swiper-item
-          v-for="imageUrl in imagePreviewUrls"
-          :key="imageUrl"
-        >
-          <image
-            class="image-preview-image"
-            :src="imageUrl"
-            mode="aspectFit"
-            @click.stop
-          />
-        </swiper-item>
-      </swiper>
-      <template v-if="imagePreviewUrls.length > 1">
-        <button
-          class="image-preview-nav image-preview-nav-prev"
-          hover-class="none"
-          @click.stop="switchPreviewImage(-1)"
-        >
-          <view class="image-preview-nav-icon image-preview-nav-icon-prev" />
-        </button>
-        <button
-          class="image-preview-nav image-preview-nav-next"
-          hover-class="none"
-          @click.stop="switchPreviewImage(1)"
-        >
-          <view class="image-preview-nav-icon image-preview-nav-icon-next" />
-        </button>
-      </template>
-    </view>
   </view>
 </template>
 
@@ -2507,135 +2401,4 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   margin-top: 22rpx;
 }
 
-.image-preview-mask {
-  position: fixed;
-  z-index: 999;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.92);
-}
-
-.image-preview-swiper {
-  width: 100%;
-  height: 100%;
-}
-
-.image-preview-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.image-preview-close {
-  position: fixed;
-  z-index: 1002;
-  top: calc(70rpx + env(safe-area-inset-top));
-  right: 34rpx;
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.image-preview-close::after {
-  border: 0;
-}
-
-.image-preview-counter {
-  position: fixed;
-  z-index: 1001;
-  left: 50%;
-  bottom: calc(72rpx + env(safe-area-inset-bottom));
-  min-width: 96rpx;
-  height: 72rpx;
-  box-sizing: border-box;
-  padding: 0 24rpx;
-  border-radius: 999rpx;
-  background: rgba(0, 0, 0, 0.38);
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 500;
-  line-height: 72rpx;
-  text-align: center;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-.image-preview-close-icon {
-  position: relative;
-  width: 30rpx;
-  height: 30rpx;
-}
-
-.image-preview-close-icon::before,
-.image-preview-close-icon::after {
-  position: absolute;
-  left: 14rpx;
-  top: 0;
-  width: 4rpx;
-  height: 30rpx;
-  border-radius: 999rpx;
-  background: #fff;
-  content: "";
-}
-
-.image-preview-close-icon::before {
-  transform: rotate(45deg);
-}
-
-.image-preview-close-icon::after {
-  transform: rotate(-45deg);
-}
-
-.image-preview-nav {
-  position: fixed;
-  z-index: 1001;
-  top: 50%;
-  display: flex;
-  width: 86rpx;
-  height: 86rpx;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
-  transform: translateY(-50%);
-}
-
-.image-preview-nav::after {
-  border: 0;
-}
-
-.image-preview-nav-prev {
-  left: 28rpx;
-}
-
-.image-preview-nav-next {
-  right: 28rpx;
-}
-
-.image-preview-nav-icon {
-  width: 24rpx;
-  height: 24rpx;
-  border-top: 5rpx solid #fff;
-  border-right: 5rpx solid #fff;
-}
-
-.image-preview-nav-icon-prev {
-  transform: translateX(5rpx) rotate(-135deg);
-}
-
-.image-preview-nav-icon-next {
-  transform: translateX(-5rpx) rotate(45deg);
-}
 </style>
