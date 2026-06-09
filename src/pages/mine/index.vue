@@ -284,7 +284,14 @@ function logout() {
     >
       <view
         v-if="sheet"
-        :class="['sheet-panel', sheet === 'pwd' ? 'sheet-panel-pwd' : 'sheet-panel-normal']"
+        :class="[
+          'sheet-panel',
+          sheet === 'info'
+            ? 'sheet-panel-info'
+            : sheet === 'pwd'
+              ? 'sheet-panel-pwd'
+              : 'sheet-panel-normal',
+        ]"
       >
         <view class="sheet-head">
           <text class="sheet-title">
@@ -304,10 +311,12 @@ function logout() {
             <text class="info-key">部门：</text>
             <text class="info-value">{{ user.dept }}</text>
           </view>
+          <!--
           <view class="info-row">
             <text class="info-key">手机：</text>
             <text class="info-value">{{ user.phone }}</text>
           </view>
+          -->
         </view>
 
         <view
@@ -584,6 +593,10 @@ function logout() {
 
 .sheet-panel-normal {
   height: 708rpx;
+}
+
+.sheet-panel-info {
+  height: 556rpx;
 }
 
 .sheet-panel-pwd {

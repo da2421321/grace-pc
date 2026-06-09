@@ -82,12 +82,6 @@
       }
     },
     {
-      "path": "pages/mine/info/edit",
-      "style": {
-        "navigationBarTitleText": "编辑资料"
-      }
-    },
-    {
       "path": "pages/mine/pwd/index",
       "style": {
         "navigationBarTitleText": "修改密码"

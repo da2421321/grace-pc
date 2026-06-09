@@ -92,6 +92,8 @@ const REPORT_FAB_POSITION_STORAGE_KEY = 'home_report_fab_position'
 const HOME_SHARE_TITLE = '品检图例'
 const HOME_SHARE_PATH = '/pages/index'
 const HOME_SHARE_IMAGE_URL = '/static/images/qc/home_hero.png'
+const CATEGORY_GUIDE_DESC_MAX_LINES = 5
+const CATEGORY_GUIDE_DESC_LINE_CHAR_LIMIT = 22
 
 const topCategoryOptions = computed(() => getTopCategoryOptionsFromCatalog(catalog.value.categories))
 const topTabs = computed(() => topCategoryOptions.value.map(option => formatTopOption(option)))
@@ -146,6 +148,17 @@ const categoryGuideDescription = computed(() => {
   if (description)
     return description
   return categoryGuideLoading.value ? '加载中...' : '暂无品类详情'
+})
+const categoryGuideDescScrollable = computed(() => {
+  const description = categoryGuideDescription.value.replace(/\r\n/g, '\n').trim()
+  if (!description)
+    return false
+
+  const estimatedLines = description.split('\n').reduce((total, line) => {
+    const lineLength = Math.max(line.trim().length, 1)
+    return total + Math.ceil(lineLength / CATEGORY_GUIDE_DESC_LINE_CHAR_LIMIT)
+  }, 0)
+  return estimatedLines > CATEGORY_GUIDE_DESC_MAX_LINES
 })
 const categoryGuideImageUrls = computed(() => {
   return (categoryGuideDetail.value?.imageUrls ?? []).filter(Boolean)
@@ -1237,7 +1250,19 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
           <text class="category-guide-title">
             {{ categoryGuideTitle }}
           </text>
-          <text class="category-guide-desc">
+          <scroll-view
+            v-if="categoryGuideDescScrollable"
+            class="category-guide-desc-scroll"
+            scroll-y
+          >
+            <text class="category-guide-desc">
+              {{ categoryGuideDescription }}
+            </text>
+          </scroll-view>
+          <text
+            v-else
+            class="category-guide-desc category-guide-desc-short"
+          >
             {{ categoryGuideDescription }}
           </text>
         </view>
@@ -2299,7 +2324,11 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .category-guide-popup {
   position: relative;
   width: 720rpx;
+  max-height: 960rpx;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 30rpx 16rpx 22rpx;
   border-radius: 28rpx;
   background: #fff;
@@ -2350,11 +2379,13 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 }
 
 .category-guide-head {
-  padding: 2rpx 86rpx 0 0;
+  flex-shrink: 0;
+  padding: 2rpx 0 0;
 }
 
 .category-guide-media-shell {
   position: relative;
+  flex-shrink: 0;
   margin-top: 28rpx;
   padding: 0 4rpx;
 }
@@ -2449,19 +2480,31 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 
 .category-guide-title {
   display: block;
+  box-sizing: border-box;
+  padding-right: 86rpx;
   color: #1f2d3d;
   font-size: 52rpx;
   font-weight: 700;
   line-height: 60rpx;
 }
 
+.category-guide-desc-scroll {
+  width: 100%;
+  height: 230rpx;
+  margin-top: 22rpx;
+  overflow: hidden;
+}
+
 .category-guide-desc {
   display: block;
-  margin-top: 22rpx;
   color: #4f6275;
   font-size: 28rpx;
   line-height: 46rpx;
   white-space: pre-wrap;
+}
+
+.category-guide-desc-short {
+  margin-top: 22rpx;
 }
 
 .image-preview-mask {

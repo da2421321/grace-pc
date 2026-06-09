@@ -33,12 +33,14 @@ onLoad(() => {
         title="昵称"
         :right-text="String(user.nickName || '')"
       />
+      <!--
       <uni-list-item
         :show-extra-icon="true"
         :extra-icon="{ type: 'phone-filled' }"
         title="手机号码"
         :right-text="String(user.phonenumber || '')"
       />
+      -->
       <uni-list-item
         :show-extra-icon="true"
         :extra-icon="{ type: 'email-filled' }"
