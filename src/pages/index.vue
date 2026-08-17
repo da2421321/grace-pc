@@ -22,6 +22,7 @@ import {
   type QualityImageQuery,
 } from '@/data/qc'
 import { useUserStore } from '@/store/user'
+import { createWatermarkText, getWatermarkedImage } from '@/utils/image-watermark'
 
 interface ContentChipOption extends CatalogFilterOption {
   kind: 'variety'
@@ -66,6 +67,7 @@ const categoryGuideImageIndex = ref(0)
 let queryRequestId = 0
 let categoryGuideRequestId = 0
 let hasInitialLoadFinished = false
+let skipNextShowRefresh = false
 const PAGE_SIZE = 20
 const DISABLE_MOCK_FALLBACK = { mockFallback: false } as const
 const currentPage = ref(1)
@@ -166,6 +168,10 @@ onLoad(() => {
 onShow(() => {
   if (!hasInitialLoadFinished)
     return
+  if (skipNextShowRefresh) {
+    skipNextShowRefresh = false
+    return
+  }
   void refreshCurrentCatalogState()
 })
 
@@ -527,15 +533,31 @@ function closeDetail() {
   detailItem.value = undefined
 }
 
-function openImagePreview(urls: string[], currentUrl: string) {
+async function openImagePreview(urls: string[], currentUrl: string) {
   const previewUrls = urls.filter(Boolean)
   if (!previewUrls.length)
     return
 
-  uni.previewImage({
-    urls: previewUrls,
-    current: previewUrls.includes(currentUrl) ? currentUrl : previewUrls[0],
-  })
+  try {
+    uni.showLoading({ title: '图片处理中...', mask: true })
+    const watermarkedUrls: string[] = []
+    for (const url of previewUrls)
+      watermarkedUrls.push(await getWatermarkedImage(url, { text: createWatermarkText(userStore.name) }))
+    const currentIndex = Math.max(0, previewUrls.indexOf(currentUrl))
+    skipNextShowRefresh = true
+    uni.previewImage({
+      urls: watermarkedUrls,
+      current: watermarkedUrls[currentIndex] || watermarkedUrls[0],
+      showmenu: true,
+    })
+  }
+  catch (error) {
+    console.error('生成图片水印失败', error)
+    uni.showToast({ title: '图片水印生成失败，请重试', icon: 'none' })
+  }
+  finally {
+    uni.hideLoading()
+  }
 }
 
 function shouldShowCategoryGuide(option: CatalogFilterOption) {
@@ -649,37 +671,25 @@ function getDetailVarietyLabel(item: QualityImageItem) {
   return `${item.varietyName}(${item.varietyCode})`
 }
 
-function saveDetailImage(item: QualityImageItem) {
+async function saveDetailImage(item: QualityImageItem) {
   const imageUrl = getDetailImageUrl(item)
 
   // #ifdef H5
-  uni.previewImage({
-    urls: [imageUrl],
-    current: imageUrl,
-  })
+  openImagePreview([imageUrl], imageUrl)
   return
   // #endif
 
-  if (/^https?:\/\//.test(imageUrl)) {
-    uni.downloadFile({
-      url: imageUrl,
-      success: (res) => {
-        if (res.statusCode === 200 && res.tempFilePath) {
-          saveImageFile(res.tempFilePath)
-          return
-        }
-        showSaveFailed(imageUrl)
-      },
-      fail: () => showSaveFailed(imageUrl),
-    })
-    return
+  try {
+    uni.showLoading({ title: '图片处理中...', mask: true })
+    saveImageFile(await getWatermarkedImage(imageUrl, { text: createWatermarkText(userStore.name) }))
   }
-
-  uni.getImageInfo({
-    src: imageUrl,
-    success: res => saveImageFile(res.path),
-    fail: () => showSaveFailed(imageUrl),
-  })
+  catch (error) {
+    console.error('生成图片水印失败', error)
+    showSaveFailed()
+  }
+  finally {
+    uni.hideLoading()
+  }
 }
 
 function saveImageFile(filePath: string) {
@@ -706,12 +716,8 @@ async function refreshUserProfile() {
   }
 }
 
-function showSaveFailed(imageUrl: string) {
+function showSaveFailed() {
   uni.showToast({ title: '保存失败，请稍后重试', icon: 'none' })
-  uni.previewImage({
-    urls: [imageUrl],
-    current: imageUrl,
-  })
 }
 
 function goReport() {
@@ -1376,6 +1382,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
       </view>
     </view>
 
+    <canvas id="image-watermark-canvas" type="2d" class="watermark-canvas" />
   </view>
 </template>
 
@@ -2227,6 +2234,16 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   border-radius: 28rpx;
   background: #fff;
   box-shadow: 0 18rpx 44rpx rgba(37, 38, 43, 0.14);
+}
+
+.watermark-canvas {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .category-guide-close {

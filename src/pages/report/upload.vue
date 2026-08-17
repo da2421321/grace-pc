@@ -105,6 +105,7 @@ function chooseReportImage() {
     fail: (error) => {
       const message = String(error?.errMsg || '')
       if (!message.includes('cancel')) {
+        console.error('chooseImage failed', error)
         uni.showToast({ title: '选择图片失败，请重试', icon: 'none' })
       }
     },

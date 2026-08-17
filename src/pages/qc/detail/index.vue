@@ -2,7 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { fetchQualityImageDetail, getFullCategoryPath, getQualityImageUrls, type QualityImageItem } from '@/data/qc'
+import { useUserStore } from '@/store/user'
+import { createWatermarkText, getWatermarkedImage } from '@/utils/image-watermark'
 
+const userStore = useUserStore()
 const detailItem = ref<QualityImageItem>()
 const currentImageIndex = ref(0)
 const navBarHeight = ref(44)
@@ -114,18 +117,33 @@ function switchDetailImage(offset: number) {
   currentImageIndex.value = (currentImageIndex.value + offset + total) % total
 }
 
-function openImagePreview(urls: string[], currentUrl: string) {
+async function openImagePreview(urls: string[], currentUrl: string) {
   const previewUrls = urls.filter(Boolean)
   if (!previewUrls.length)
     return
 
-  uni.previewImage({
-    urls: previewUrls,
-    current: previewUrls.includes(currentUrl) ? currentUrl : previewUrls[0],
-  })
+  try {
+    uni.showLoading({ title: '图片处理中...', mask: true })
+    const watermarkedUrls: string[] = []
+    for (const url of previewUrls)
+      watermarkedUrls.push(await getWatermarkedImage(url, { text: createWatermarkText(userStore.name) }))
+    const currentIndex = Math.max(0, previewUrls.indexOf(currentUrl))
+    uni.previewImage({
+      urls: watermarkedUrls,
+      current: watermarkedUrls[currentIndex] || watermarkedUrls[0],
+      showmenu: true,
+    })
+  }
+  catch (error) {
+    console.error('生成图片水印失败', error)
+    uni.showToast({ title: '图片水印生成失败，请重试', icon: 'none' })
+  }
+  finally {
+    uni.hideLoading()
+  }
 }
 
-function saveDetailImage(item: QualityImageItem) {
+async function saveDetailImage(item: QualityImageItem) {
   const imageUrl = getDetailImageUrl(item)
 
   // #ifdef H5
@@ -136,26 +154,17 @@ function saveDetailImage(item: QualityImageItem) {
   return
   // #endif
 
-  if (/^https?:\/\//.test(imageUrl)) {
-    uni.downloadFile({
-      url: imageUrl,
-      success: (res) => {
-        if (res.statusCode === 200 && res.tempFilePath) {
-          saveImageFile(res.tempFilePath)
-          return
-        }
-        showSaveFailed(imageUrl)
-      },
-      fail: () => showSaveFailed(imageUrl),
-    })
-    return
+  try {
+    uni.showLoading({ title: '图片处理中...', mask: true })
+    saveImageFile(await getWatermarkedImage(imageUrl, { text: createWatermarkText(userStore.name) }))
   }
-
-  uni.getImageInfo({
-    src: imageUrl,
-    success: res => saveImageFile(res.path),
-    fail: () => showSaveFailed(imageUrl),
-  })
+  catch (error) {
+    console.error('生成图片水印失败', error)
+    showSaveFailed()
+  }
+  finally {
+    uni.hideLoading()
+  }
 }
 
 function saveImageFile(filePath: string) {
@@ -188,12 +197,8 @@ function getErrorMessage(error: unknown) {
   return ''
 }
 
-function showSaveFailed(imageUrl: string) {
+function showSaveFailed() {
   uni.showToast({ title: '保存失败，请稍后重试', icon: 'none' })
-  uni.previewImage({
-    urls: [imageUrl],
-    current: imageUrl,
-  })
 }
 </script>
 
@@ -320,6 +325,7 @@ function showSaveFailed(imageUrl: string) {
       </button>
     </view>
 
+    <canvas id="image-watermark-canvas" type="2d" class="watermark-canvas" />
   </view>
 </template>
 
@@ -451,6 +457,16 @@ function showSaveFailed(imageUrl: string) {
 
 .detail-image-nav-icon-next {
   transform: translateX(-4rpx) rotate(45deg);
+}
+
+.watermark-canvas {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .detail-image-counter {
