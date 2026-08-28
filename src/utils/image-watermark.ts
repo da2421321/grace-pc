@@ -1,20 +1,16 @@
-const WATERMARK_BRAND = '格瑞哲GRACER'
+import watermarkImage from '@/static/images/watermark.png'
+
 const DEFAULT_WATERMARK_CANVAS_ID = 'image-watermark-canvas'
 const MAX_EXPORT_EDGE = 2560
+const WATERMARK_IMAGE_WIDTH = 800
+const WATERMARK_IMAGE_HEIGHT = 800
 
 type WatermarkCanvasContext = {
   clearRect: (x: number, y: number, width: number, height: number) => void
   drawImage: (image: WatermarkCanvasImage, dx: number, dy: number, dWidth: number, dHeight: number) => void
-  fillText: (text: string, x: number, y: number) => void
   restore: () => void
-  rotate: (angle: number) => void
   save: () => void
-  translate: (x: number, y: number) => void
-  font: string
-  fillStyle: string
   globalAlpha: number
-  textAlign: CanvasTextAlign
-  textBaseline: CanvasTextBaseline
 }
 
 type WatermarkCanvas = {
@@ -32,7 +28,6 @@ type WatermarkCanvasImage = {
 
 type WatermarkOptions = {
   canvasId?: string
-  text?: string
 }
 
 const watermarkedImageCache = new Map<string, Promise<string>>()
@@ -46,14 +41,13 @@ export function getWatermarkedImage(source: string, options: WatermarkOptions = 
   if (!normalizedSource)
     return Promise.reject(new Error('图片地址不能为空'))
 
-  const text = options.text || createWatermarkText('')
   const canvasId = options.canvasId || DEFAULT_WATERMARK_CANVAS_ID
-  const cacheKey = `${text}:${normalizedSource}`
+  const cacheKey = `${canvasId}:${normalizedSource}`
   const cached = watermarkedImageCache.get(cacheKey)
   if (cached)
     return cached
 
-  const task = createWatermarkedImage(normalizedSource, text, canvasId).catch((error) => {
+  const task = createWatermarkedImage(normalizedSource, canvasId).catch((error) => {
     watermarkedImageCache.delete(cacheKey)
     throw error
   })
@@ -61,16 +55,7 @@ export function getWatermarkedImage(source: string, options: WatermarkOptions = 
   return task
 }
 
-/**
- * 按“格瑞哲GRACER@用户名 日期”的格式生成水印文字。
- */
-export function createWatermarkText(userName: string, date = new Date()) {
-  const name = userName.trim() || '当前用户'
-  const formattedDate = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
-  return `${WATERMARK_BRAND}@${name} ${formattedDate}`
-}
-
-async function createWatermarkedImage(source: string, text: string, canvasId: string) {
+async function createWatermarkedImage(source: string, canvasId: string) {
   // #ifndef MP-WEIXIN
   return source
   // #endif
@@ -86,10 +71,20 @@ async function createWatermarkedImage(source: string, text: string, canvasId: st
     throw new Error('无法创建图片水印画布')
 
   const image = await loadCanvasImage(canvas, imageInfo.path)
+  // 本地静态资源不能使用 getImageInfo 返回的 path 再交给 Canvas 2D，
+  // 微信开发者工具会将其错误解析成 /pages/static/...；直接使用打包后的资源地址。
+  const watermark = await loadCanvasImage(canvas, watermarkImage)
   const drawingContext = context as WatermarkCanvasContext
   drawingContext.clearRect(0, 0, size.width, size.height)
   drawingContext.drawImage(image, 0, 0, size.width, size.height)
-  drawWatermark(drawingContext, text, size.width, size.height)
+  drawWatermark(
+    drawingContext,
+    watermark,
+    size.width,
+    size.height,
+    WATERMARK_IMAGE_WIDTH,
+    WATERMARK_IMAGE_HEIGHT,
+  )
 
   return await exportCanvas(canvas, size.width, size.height)
   // #endif
@@ -145,27 +140,23 @@ function getExportSize(width: number, height: number) {
   }
 }
 
-function drawWatermark(context: WatermarkCanvasContext, text: string, width: number, height: number) {
-  const fontSize = Math.max(14, Math.round(Math.min(width, height) * 0.03))
-  const gapX = Math.max(fontSize * 20, width * 0.5)
-  const gapY = Math.max(fontSize * 4, height * 0.32)
-  const diagonal = Math.hypot(width, height)
+function drawWatermark(
+  context: WatermarkCanvasContext,
+  watermark: WatermarkCanvasImage,
+  width: number,
+  height: number,
+  watermarkWidth: number,
+  watermarkHeight: number,
+) {
+  const scale = Math.max(width / watermarkWidth, height / watermarkHeight)
+  const drawWidth = watermarkWidth * scale
+  const drawHeight = watermarkHeight * scale
+  const offsetX = (width - drawWidth) / 2
+  const offsetY = (height - drawHeight) / 2
 
   context.save()
-  context.globalAlpha = 0.28
-  context.fillStyle = '#1F2937'
-  context.font = `600 ${fontSize}px sans-serif`
-  context.textAlign = 'center'
-  context.textBaseline = 'middle'
-  context.translate(width / 2, height / 2)
-  context.rotate(-Math.PI / 6)
-
-  for (let y = -diagonal; y <= diagonal; y += gapY) {
-    const rowOffset = Math.round((y + diagonal) / gapY) % 2 === 0 ? 0 : gapX / 2
-    for (let x = -diagonal; x <= diagonal; x += gapX)
-      context.fillText(text, x + rowOffset, y)
-  }
-
+  context.globalAlpha = 1
+  context.drawImage(watermark, offsetX, offsetY, drawWidth, drawHeight)
   context.restore()
 }
 

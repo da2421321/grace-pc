@@ -22,7 +22,7 @@ import {
   type QualityImageQuery,
 } from '@/data/qc'
 import { useUserStore } from '@/store/user'
-import { createWatermarkText, getWatermarkedImage } from '@/utils/image-watermark'
+import { getWatermarkedImage } from '@/utils/image-watermark'
 
 interface ContentChipOption extends CatalogFilterOption {
   kind: 'variety'
@@ -542,7 +542,7 @@ async function openImagePreview(urls: string[], currentUrl: string) {
     uni.showLoading({ title: '图片处理中...', mask: true })
     const watermarkedUrls: string[] = []
     for (const url of previewUrls)
-      watermarkedUrls.push(await getWatermarkedImage(url, { text: createWatermarkText(userStore.name) }))
+      watermarkedUrls.push(await getWatermarkedImage(url))
     const currentIndex = Math.max(0, previewUrls.indexOf(currentUrl))
     skipNextShowRefresh = true
     uni.previewImage({
@@ -681,7 +681,7 @@ async function saveDetailImage(item: QualityImageItem) {
 
   try {
     uni.showLoading({ title: '图片处理中...', mask: true })
-    saveImageFile(await getWatermarkedImage(imageUrl, { text: createWatermarkText(userStore.name) }))
+    saveImageFile(await getWatermarkedImage(imageUrl))
   }
   catch (error) {
     console.error('生成图片水印失败', error)
