@@ -90,6 +90,7 @@ const REPORT_FAB_POSITION_STORAGE_KEY = 'home_report_fab_position'
 const HOME_SHARE_TITLE = '品检图例'
 const HOME_SHARE_PATH = '/pages/index'
 const HOME_SHARE_IMAGE_URL = '/static/images/qc/home_hero.png'
+const HOME_NOTICE_TEXT = '该小程序所有内容均为公司内部资料，仅限工作使用，严禁外泄。私自外泄者，一经发现，将罚款50万元，并追究相关赔偿损失。'
 const CATEGORY_GUIDE_DESC_MAX_LINES = 5
 const CATEGORY_GUIDE_DESC_LINE_CHAR_LIMIT = 22
 
@@ -913,17 +914,17 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 </script>
 
 <template>
-  <view class="home-page">
+  <view
+    class="home-page"
+    :style="{ '--status-bar-height': `${statusBarHeight}px` }"
+  >
     <image
       class="bg-header"
       src="/static/images/figma/mine/mine-bg.svg"
       mode="scaleToFill"
     />
 
-    <view
-      class="hero"
-      :style="{ '--status-bar-height': `${statusBarHeight}px` }"
-    >
+    <view class="hero">
       <view class="hero-main">
         <view class="brand-copy">
           <text class="brand-title">
@@ -957,6 +958,21 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
         >
           搜索
         </button>
+      </view>
+
+      <view class="notice-bar">
+        <view class="notice-icon">
+          <uni-icons
+            type="sound"
+            size="12"
+            color="#3F7A00"
+          />
+        </view>
+        <view class="notice-viewport">
+          <view class="notice-text">
+            {{ HOME_NOTICE_TEXT }}
+          </view>
+        </view>
       </view>
     </view>
 
@@ -1404,13 +1420,13 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   right: 0;
   top: 0;
   width: 100%;
-  height: 464rpx;
+  height: calc(var(--status-bar-height, 44px) + 432rpx);
 }
 
 .hero {
   position: relative;
   z-index: 1;
-  height: 416rpx;
+  height: calc(var(--status-bar-height, 44px) + 384rpx);
   box-sizing: border-box;
   overflow: hidden;
   background: transparent;
@@ -1539,7 +1555,7 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
 .body-shell {
   position: relative;
   z-index: 1;
-  height: calc(100vh - var(--window-bottom, 0px) - 416rpx);
+  height: calc(100vh - var(--window-bottom, 0px) - var(--status-bar-height, 44px) - 384rpx);
   overflow: hidden;
   border-radius: 30rpx 30rpx 0 0;
   background: #fff;
@@ -1617,6 +1633,60 @@ function formatVarietyOption(option: CatalogFilterOption): CatalogFilterOption {
   border: 0;
   background: transparent;
   line-height: 1;
+}
+
+.notice-bar {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  left: 50rpx;
+  right: 50rpx;
+  top: calc(var(--status-bar-height, 44px) + 320rpx);
+  height: 52rpx;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 20rpx;
+  border-radius: 26rpx;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.notice-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8rpx;
+}
+
+.notice-viewport {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.notice-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding-left: 100%;
+  color: #3f7a00;
+  font-size: 22rpx;
+  line-height: 52rpx;
+  white-space: nowrap;
+  animation: home-notice-scroll 18s linear infinite;
+}
+
+@keyframes home-notice-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
 }
 
 .main-panel {

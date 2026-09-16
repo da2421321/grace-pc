@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onReady, onUnload } from '@dcloudio/uni-app'
 import { fetchQualityImageDetail, getFullCategoryPath, getQualityImageUrls, type QualityImageItem } from '@/data/qc'
 import { useUserStore } from '@/store/user'
 import { getWatermarkedImage } from '@/utils/image-watermark'
@@ -12,6 +12,11 @@ const navBarHeight = ref(44)
 const navMenuTop = ref(0)
 const navMenuHeight = ref(44)
 const loading = ref(true)
+const watermarkedDetailImageUrls = ref<string[]>([])
+const watermarkLoading = ref(false)
+const watermarkFailed = ref(false)
+let detailViewReady = false
+let watermarkRequestId = 0
 
 const navBarStyle = computed(() => ({
   height: `${navBarHeight.value}px`,
@@ -39,6 +44,15 @@ onMounted(() => {
   initNavBar()
 })
 
+onReady(() => {
+  detailViewReady = true
+  void prepareWatermarkedDetailImages()
+})
+
+onUnload(() => {
+  watermarkRequestId += 1
+})
+
 onLoad(async (query = {}) => {
   initNavBar()
 
@@ -51,6 +65,9 @@ onLoad(async (query = {}) => {
   try {
     detailItem.value = await fetchQualityImageDetail(id)
     currentImageIndex.value = 0
+    watermarkedDetailImageUrls.value = []
+    watermarkFailed.value = false
+    await prepareWatermarkedDetailImages()
   }
   finally {
     loading.value = false
@@ -107,6 +124,48 @@ function onDetailSwiperChange(event: { detail?: { current?: number } }) {
 
 function previewDetailImages() {
   openImagePreview(detailImageUrls.value, currentDetailImageUrl.value)
+}
+
+async function prepareWatermarkedDetailImages() {
+  if (!detailViewReady || !detailItem.value)
+    return
+
+  const sourceUrls = detailImageUrls.value.filter(Boolean)
+  if (!sourceUrls.length)
+    return
+
+  const requestId = ++watermarkRequestId
+  watermarkLoading.value = true
+  watermarkFailed.value = false
+  watermarkedDetailImageUrls.value = []
+
+  try {
+    const urls: string[] = []
+    for (const url of sourceUrls)
+      urls.push(await getWatermarkedImage(url, { userName: userStore.name }))
+
+    if (requestId === watermarkRequestId)
+      watermarkedDetailImageUrls.value = urls
+  }
+  catch (error) {
+    if (requestId !== watermarkRequestId)
+      return
+
+    console.error('生成详情图片水印失败', error)
+    watermarkFailed.value = true
+    uni.showToast({ title: '图片水印生成失败，请重试', icon: 'none' })
+  }
+  finally {
+    if (requestId === watermarkRequestId)
+      watermarkLoading.value = false
+  }
+}
+
+function retryWatermark() {
+  if (!watermarkFailed.value || watermarkLoading.value)
+    return
+
+  void prepareWatermarkedDetailImages()
 }
 
 function switchDetailImage(offset: number) {
@@ -224,13 +283,14 @@ function showSaveFailed() {
             mode="aspectFill"
           /> -->
           <swiper
+            v-if="watermarkedDetailImageUrls.length"
             class="detail-product-swiper"
             :current="currentImageIndex"
             circular
             @change="onDetailSwiperChange"
           >
             <swiper-item
-              v-for="imageUrl in detailImageUrls"
+              v-for="imageUrl in watermarkedDetailImageUrls"
               :key="imageUrl"
             >
               <image
@@ -241,7 +301,16 @@ function showSaveFailed() {
               />
             </swiper-item>
           </swiper>
-          <template v-if="detailImageUrls.length > 1">
+          <view
+            v-else
+            class="detail-image-status"
+            :class="{ 'detail-image-status-retry': watermarkFailed }"
+            @click="retryWatermark"
+          >
+            <text v-if="watermarkFailed">图片水印生成失败，点击重试</text>
+            <view v-else class="detail-image-loading" />
+          </view>
+          <template v-if="watermarkedDetailImageUrls.length > 1">
             <button
               class="detail-image-nav detail-image-nav-prev"
               hover-class="none"
@@ -258,7 +327,7 @@ function showSaveFailed() {
             </button>
           </template>
           <view
-            v-if="detailImageCounterText"
+            v-if="watermarkedDetailImageUrls.length && detailImageCounterText"
             class="detail-image-counter"
           >
             {{ detailImageCounterText }}
@@ -413,6 +482,39 @@ function showSaveFailed() {
 .detail-product-swiper .detail-product-image {
   position: static;
   display: block;
+}
+
+.detail-image-status {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #777978;
+  font-size: 26rpx;
+  line-height: 38rpx;
+  text-align: center;
+}
+
+.detail-image-status-retry {
+  color: #25262b;
+}
+
+.detail-image-loading {
+  width: 48rpx;
+  height: 48rpx;
+  box-sizing: border-box;
+  border: 5rpx solid rgba(37, 38, 43, 0.16);
+  border-top-color: #25262b;
+  border-radius: 50%;
+  animation: detail-image-loading-spin 0.8s linear infinite;
+}
+
+@keyframes detail-image-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .detail-image-nav {
