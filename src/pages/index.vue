@@ -542,7 +542,7 @@ async function openImagePreview(urls: string[], currentUrl: string) {
     uni.showLoading({ title: '图片处理中...', mask: true })
     const watermarkedUrls: string[] = []
     for (const url of previewUrls)
-      watermarkedUrls.push(await getWatermarkedImage(url))
+      watermarkedUrls.push(await getWatermarkedImage(url, { userName: userStore.name }))
     const currentIndex = Math.max(0, previewUrls.indexOf(currentUrl))
     skipNextShowRefresh = true
     uni.previewImage({
@@ -681,7 +681,7 @@ async function saveDetailImage(item: QualityImageItem) {
 
   try {
     uni.showLoading({ title: '图片处理中...', mask: true })
-    saveImageFile(await getWatermarkedImage(imageUrl))
+    saveImageFile(await getWatermarkedImage(imageUrl, { userName: userStore.name }))
   }
   catch (error) {
     console.error('生成图片水印失败', error)
