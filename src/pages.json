@@ -15,6 +15,31 @@
       }
     },
     {
+      "path": "pages/message/index",
+      "style": {
+        "navigationBarTitleText": "消息",
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": true,
+        "backgroundColor": "#f5f6f5"
+      }
+    },
+    {
+      "path": "pages/message/detail",
+      "style": {
+        "navigationBarTitleText": "消息",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/message/type",
+      "style": {
+        "navigationBarTitleText": "消息",
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": true,
+        "backgroundColor": "#ffffff"
+      }
+    },
+    {
       "path": "pages/report/success",
       "style": {
         "navigationBarTitleText": "图片上报",
@@ -99,6 +124,12 @@
         "iconPath": "static/images/tabbar/home.png",
         "selectedIconPath": "static/images/tabbar/home_.png",
         "text": "首页"
+      },
+      {
+        "pagePath": "pages/message/index",
+        "iconPath": "static/images/tabbar/message.png",
+        "selectedIconPath": "static/images/tabbar/message_.png",
+        "text": "消息"
       },
       {
         "pagePath": "pages/mine/index",

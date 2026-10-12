@@ -1,3 +1,4 @@
+import process from 'node:process'
 import uni from '@dcloudio/vite-plugin-uni'
 import AutoPrefixPlugin from 'autoprefixer'
 import TailwindCssPlugin from 'tailwindcss'
@@ -8,6 +9,7 @@ export default defineConfig({
   plugins: [
     uni(),
     uvwt({
+      disabled: process.env.UNI_PLATFORM === 'h5',
       rem2rpx: true,
     }),
   ],

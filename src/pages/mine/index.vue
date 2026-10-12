@@ -10,6 +10,7 @@ import {
   setCurrentUser,
 } from '@/data/session'
 import { useUserStore } from '@/store/user'
+import { refreshMessageTabRedDot } from '@/utils/message-tab'
 
 type SheetKind = 'info' | 'pwd' | 'admin' | ''
 type UniPopupType =
@@ -40,6 +41,7 @@ const passwordSubmitting = ref(false)
 let sheetCloseTimer: ReturnType<typeof setTimeout> | undefined
 
 onShow(() => {
+  void refreshMessageTabRedDot()
   loadUserInfo()
 })
 

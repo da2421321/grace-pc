@@ -8,7 +8,10 @@ import axios from 'axios'
 
 export type QueryParamsType = Record<string | number, any>
 
-type AxiosRequestConfigExtended = AxiosRequestConfig & { skipAuth?: boolean }
+type AxiosRequestConfigExtended = AxiosRequestConfig & {
+  skipAuth?: boolean
+  showErrorMsg?: boolean
+}
 
 export interface FullRequestParams
   extends Omit<
@@ -284,6 +287,46 @@ export interface PcQualityPageResponse<T> {
 
 export interface PcQualityImageResponse extends PcQualityPageResponse<PcQualityImageItem> {}
 
+export interface PcQualityMessageItem {
+  id: string
+  messageType?: 'image' | 'description' | 'status'
+  title?: string
+  subjectType?: string
+  subjectName?: string
+  collectionId?: string | number
+  categoryId?: string | number
+  varietyId?: string | number
+  varietyName: string
+  varietyCode: string
+  categoryPath: string[]
+  imageUrl?: string
+  imageUrls?: string[]
+  beforeImageUrls?: string[]
+  afterImageUrls?: string[]
+  imageChangeSnapshotAvailable?: boolean
+  imageCount?: number
+  content?: string
+  changeType?: 'created' | 'updated' | string
+  updateBy?: string
+  updateTime?: string
+  unread?: boolean
+}
+
+export interface PcQualityMessageResponse extends PcQualityPageResponse<PcQualityMessageItem> {}
+
+export interface PcQualityMessageGroup {
+  type: 'image' | 'description' | 'status'
+  title: string
+  total: number | string
+  unreadCount: number | string
+  latestMessage?: PcQualityMessageItem
+}
+
+export interface PcQualityMessageUnreadResponse {
+  hasUnread: boolean
+  unreadCount: number
+}
+
 export interface PcQualityCategoryNode {
   id?: string | number
   parentId?: string | number
@@ -355,7 +398,7 @@ export interface PcQualityReportItem {
   [key: string]: unknown
 }
 
-export class Api<SecurityDataType extends unknown> {
+export class Api<SecurityDataType> {
   http: HttpClient<SecurityDataType>
 
   constructor(http: HttpClient<SecurityDataType>) {
@@ -604,6 +647,45 @@ export class Api<SecurityDataType extends unknown> {
       this.http.request<PcQualityImageItem>({
         path: `/front/zj/qc/quality-images/${imageId}`,
         method: 'GET',
+        ...params,
+      }),
+    messages: (
+      query?: {
+        pageNum?: number
+        pageSize?: number
+        messageType?: 'image' | 'description' | 'status'
+      },
+      params: RequestParams = {},
+    ) =>
+      this.http.request<PcQualityMessageResponse>({
+        path: '/front/zj/qc/messages',
+        method: 'GET',
+        query,
+        ...params,
+      }),
+    messageUnread: (params: RequestParams = {}) =>
+      this.http.request<PcQualityMessageUnreadResponse>({
+        path: '/front/zj/qc/messages/unread',
+        method: 'GET',
+        ...params,
+      }),
+    messageGroups: (params: RequestParams = {}) =>
+      this.http.request<{ items: PcQualityMessageGroup[] }>({
+        path: '/front/zj/qc/messages/groups',
+        method: 'GET',
+        ...params,
+      }),
+    messageDetail: (messageId: string, params: RequestParams = {}) =>
+      this.http.request<PcQualityMessageItem>({
+        path: `/front/zj/qc/messages/${encodeURIComponent(messageId)}`,
+        method: 'GET',
+        ...params,
+      }),
+    markMessagesRead: (query: { messageType: 'image' | 'description' | 'status', readThroughId: string }, params: RequestParams = {}) =>
+      this.http.request<void>({
+        path: '/front/zj/qc/messages/read',
+        method: 'PUT',
+        query,
         ...params,
       }),
     createReport: (data: PcQualityReportCreateRequest, params: RequestParams = {}) =>

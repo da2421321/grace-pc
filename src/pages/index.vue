@@ -23,6 +23,7 @@ import {
 } from '@/data/qc'
 import { useUserStore } from '@/store/user'
 import { getWatermarkedImage } from '@/utils/image-watermark'
+import { refreshMessageTabRedDot } from '@/utils/message-tab'
 
 interface ContentChipOption extends CatalogFilterOption {
   kind: 'variety'
@@ -167,6 +168,7 @@ onLoad(() => {
 })
 
 onShow(() => {
+  void refreshMessageTabRedDot()
   if (!hasInitialLoadFinished)
     return
   if (skipNextShowRefresh) {

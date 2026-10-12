@@ -1,11 +1,11 @@
-import { AxiosError, type AxiosRequestConfig, type AxiosResponse, type InternalAxiosRequestConfig, type Method } from 'axios'
-import axios from 'axios'
+import type { AxiosResponse, InternalAxiosRequestConfig, Method } from 'axios'
+import axios, { AxiosError } from 'axios'
 
-export function axiosUniAdapter(config: AxiosRequestConfig) {
+export function axiosUniAdapter(config: InternalAxiosRequestConfig) {
   return new Promise<AxiosResponse>((resolve, reject) => {
     let task: UniApp.RequestTask | null = uni.request({
       url: axios.getUri(config),
-      header: { ...config.headers },
+      header: axios.AxiosHeaders.from(config.headers).toJSON(true),
       data: config.data,
       method: (config.method as Method).toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE',
       timeout: config.timeout,
