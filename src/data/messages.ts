@@ -23,6 +23,7 @@ export interface QualityMessageItem {
   messageType: QualityMessageType
   title: string
   subjectType: string
+  subjectId?: string
   subjectName: string
   collectionId?: string
   categoryId?: string
@@ -119,6 +120,28 @@ export async function markQualityMessagesRead(messageType: QualityMessageType, r
   await apis.zjQc.markMessagesRead({ messageType, readThroughId }, { showErrorMsg: false })
 }
 
+export function getQualityMessageTargetUrl(item: QualityMessageItem): string | undefined {
+  const detailPage = '/pages/qc/detail/index'
+  if (item.subjectType === 'category') {
+    const categoryId = item.categoryId || item.subjectId
+    return categoryId ? `${detailPage}?categoryId=${encodeURIComponent(categoryId)}` : undefined
+  }
+
+  const collectionId = item.collectionId || (item.subjectType === 'collection' ? item.subjectId : undefined)
+  if (collectionId)
+    return `${detailPage}?collectionId=${encodeURIComponent(collectionId)}`
+  if (item.subjectType === 'image' && item.subjectId)
+    return `${detailPage}?id=${encodeURIComponent(item.subjectId)}`
+
+  const varietyId = item.varietyId || (item.subjectType === 'variety' ? item.subjectId : undefined)
+  if (varietyId)
+    return `${detailPage}?varietyId=${encodeURIComponent(varietyId)}`
+  if (item.varietyCode)
+    return `${detailPage}?varietyCode=${encodeURIComponent(item.varietyCode)}`
+  if (item.categoryId)
+    return `${detailPage}?categoryId=${encodeURIComponent(item.categoryId)}`
+}
+
 function normalizeMessage(item: Record<string, unknown>): QualityMessageItem {
   const imageUrls = toStringArray(item.imageUrls).map(resolveImageUrl).filter(Boolean)
   const imageUrl = resolveImageUrl(toString(item.imageUrl))
@@ -136,6 +159,7 @@ function normalizeMessage(item: Record<string, unknown>): QualityMessageItem {
     messageType,
     title: toString(item.title),
     subjectType: toString(item.subjectType),
+    subjectId: optionalString(item.subjectId),
     subjectName: toString(item.subjectName),
     collectionId: optionalString(item.collectionId),
     categoryId: optionalString(item.categoryId),

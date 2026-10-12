@@ -292,6 +292,7 @@ export interface PcQualityMessageItem {
   messageType?: 'image' | 'description' | 'status'
   title?: string
   subjectType?: string
+  subjectId?: string | number
   subjectName?: string
   collectionId?: string | number
   categoryId?: string | number
@@ -646,6 +647,12 @@ export class Api<SecurityDataType> {
     qualityImageDetail: (imageId: ApiLongId, params: RequestParams = {}) =>
       this.http.request<PcQualityImageItem>({
         path: `/front/zj/qc/quality-images/${imageId}`,
+        method: 'GET',
+        ...params,
+      }),
+    qualityImageCollectionDetail: (collectionId: ApiLongId, params: RequestParams = {}) =>
+      this.http.request<PcQualityImageItem>({
+        path: `/front/zj/qc/quality-image-collections/${collectionId}`,
         method: 'GET',
         ...params,
       }),

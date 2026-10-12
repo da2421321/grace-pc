@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import type { QualityDetailQuery, QualityImageItem } from '@/data/qc'
 import { onLoad, onReady, onUnload } from '@dcloudio/uni-app'
-import { fetchQualityImageDetail, getFullCategoryPath, getQualityImageUrls, type QualityImageItem } from '@/data/qc'
+import { computed, onMounted, ref } from 'vue'
+import { fetchQualityDetail, getFullCategoryPath, getQualityImageUrls } from '@/data/qc'
 import { useUserStore } from '@/store/user'
 import { getWatermarkedImage } from '@/utils/image-watermark'
 
@@ -27,9 +28,9 @@ const navBackStyle = computed(() => ({
   height: `${navMenuHeight.value}px`,
 }))
 
-const detailImageUrls = computed(() => detailItem.value ? getQualityImageUrls(detailItem.value) : [])
+const detailImageUrls = computed(() => (detailItem.value?.imageUrls ?? []).filter(Boolean))
 const currentDetailImageUrl = computed(() => {
-  return detailImageUrls.value[currentImageIndex.value] || detailImageUrls.value[0] || '/static/images/figma/detail/bag.png'
+  return detailImageUrls.value[currentImageIndex.value] || detailImageUrls.value[0] || ''
 })
 const detailImageCounterText = computed(() => {
   const total = detailImageUrls.value.length
@@ -56,18 +57,25 @@ onUnload(() => {
 onLoad(async (query = {}) => {
   initNavBar()
 
-  const id = typeof query.id === 'string' ? decodeURIComponent(query.id) : ''
-  if (!id) {
+  const detailQuery: QualityDetailQuery = {}
+  for (const key of ['id', 'collectionId', 'categoryId', 'varietyId', 'varietyCode'] as const) {
+    if (typeof query[key] === 'string')
+      detailQuery[key] = query[key]
+  }
+  if (!Object.values(detailQuery).some(Boolean)) {
     loading.value = false
     return
   }
 
   try {
-    detailItem.value = await fetchQualityImageDetail(id)
+    detailItem.value = await fetchQualityDetail(detailQuery)
     currentImageIndex.value = 0
     watermarkedDetailImageUrls.value = []
     watermarkFailed.value = false
     await prepareWatermarkedDetailImages()
+  }
+  catch {
+    detailItem.value = undefined
   }
   finally {
     loading.value = false
@@ -301,13 +309,18 @@ function showSaveFailed() {
               />
             </swiper-item>
           </swiper>
+          <view v-else-if="!detailImageUrls.length" class="detail-image-status">
+            <text>暂无图片</text>
+          </view>
           <view
             v-else
             class="detail-image-status"
             :class="{ 'detail-image-status-retry': watermarkFailed }"
             @click="retryWatermark"
           >
-            <text v-if="watermarkFailed">图片水印生成失败，点击重试</text>
+            <text v-if="watermarkFailed">
+              图片水印生成失败，点击重试
+            </text>
             <view v-else class="detail-image-loading" />
           </view>
           <template v-if="watermarkedDetailImageUrls.length > 1">
@@ -341,7 +354,9 @@ function showSaveFailed() {
         <view class="detail-label-wrap">
           <view class="detail-label-inner">
             <view class="detail-label-mark" />
-            <text class="detail-label">品类</text>
+            <text class="detail-label">
+              品类
+            </text>
           </view>
         </view>
         <text class="detail-value">
@@ -349,11 +364,13 @@ function showSaveFailed() {
         </text>
       </view>
 
-      <view class="detail-field-row">
+      <view v-if="detailItem.varietyName || detailItem.varietyCode" class="detail-field-row">
         <view class="detail-label-wrap">
           <view class="detail-label-inner">
             <view class="detail-label-mark" />
-            <text class="detail-label">品种</text>
+            <text class="detail-label">
+              品种
+            </text>
           </view>
         </view>
         <text class="detail-value detail-value-small">
@@ -365,7 +382,9 @@ function showSaveFailed() {
         <view class="detail-label-wrap">
           <view class="detail-label-inner">
             <view class="detail-label-mark" />
-            <text class="detail-label">描述</text>
+            <text class="detail-label">
+              描述
+            </text>
           </view>
         </view>
         <text class="detail-value detail-desc">
@@ -376,14 +395,14 @@ function showSaveFailed() {
 
     <view v-else-if="!loading" class="not-found">
       <text class="not-found-title">
-        未找到该品类详情
+        当前无法查看该品类详情
       </text>
       <button class="not-found-button" hover-class="none" @click="goBack">
         返回
       </button>
     </view>
 
-    <view v-if="detailItem" class="detail-bottom-bar">
+    <view v-if="detailItem && detailImageUrls.length" class="detail-bottom-bar">
       <button class="detail-save-button" hover-class="none" @click="saveDetailImage(detailItem)">
         <image
           class="detail-save-icon"
@@ -755,5 +774,4 @@ function showSaveFailed() {
 .not-found-button::after {
   border: 0;
 }
-
 </style>

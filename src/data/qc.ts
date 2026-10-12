@@ -260,6 +260,55 @@ export async function fetchQualityImageDetail(imageId: string | number, options?
   return MOCK_ITEMS.map(normalizeImageItem).find(item => item.id === String(imageId))
 }
 
+export interface QualityDetailQuery {
+  id?: string
+  collectionId?: string
+  categoryId?: string
+  varietyId?: string
+  varietyCode?: string
+}
+
+export async function fetchQualityDetail(query: QualityDetailQuery): Promise<QualityImageItem | undefined> {
+  const options = { mockFallback: false } as const
+  if (query.collectionId) {
+    const response = await apis.zjQc.qualityImageCollectionDetail(query.collectionId as `${number}`)
+    const payload = unwrapData<QualityImageItem>(response)
+    return payload ? normalizeImageItem(payload) : undefined
+  }
+  if (query.id)
+    return fetchQualityImageDetail(query.id, options)
+  if (query.varietyId || query.varietyCode) {
+    const response = await fetchQualityImages({
+      varietyId: query.varietyId,
+      varietyCode: query.varietyCode,
+      pageNum: 1,
+      pageSize: 1,
+    }, options)
+    return response.items[0]
+  }
+  if (!query.categoryId)
+    return undefined
+
+  const category = await fetchCategoryDetail(query.categoryId, options)
+  if (!category)
+    return undefined
+  const imageUrls = category.imageUrls ?? []
+  return {
+    id: category.id || query.categoryId,
+    categoryId: category.id || query.categoryId,
+    enabled: category.enabled !== false,
+    imageUrl: imageUrls[0] || '',
+    imageUrls,
+    imageCount: imageUrls.length,
+    varietyName: '',
+    varietyCode: '',
+    categoryPath: category.pathNames,
+    categoryPathIds: category.pathIds,
+    topCategory: category.pathNames[0] || category.name,
+    description: category.description,
+  }
+}
+
 export async function fetchCategories(query?: CategoryQuery, options?: FetchDataOptions): Promise<CategoryListResponse> {
   try {
     const response = await apis.zjQc.categories(cleanCategoryQuery(query))
@@ -712,7 +761,6 @@ function buildMockVarieties(items: QualityImageItem[]): VarietyOption[] {
   }
   return Array.from(map.values())
 }
-
 
 export function getTopCategoryOptionsFromCatalog(categories: CategoryNode[]): CatalogFilterOption[] {
   return [

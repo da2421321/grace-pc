@@ -3,7 +3,7 @@ import type { QualityMessageItem, QualityMessageType } from '@/data/messages'
 import { onLoad, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import QualityMessageImageComparison from '@/components/quality-message-image-comparison.vue'
-import { fetchQualityMessages, getQualityMessageIcon, isQualityMessageType, markQualityMessagesRead, QUALITY_MESSAGE_TYPES } from '@/data/messages'
+import { fetchQualityMessages, getQualityMessageIcon, getQualityMessageTargetUrl, isQualityMessageType, markQualityMessagesRead, QUALITY_MESSAGE_TYPES } from '@/data/messages'
 import { refreshMessageTabRedDot } from '@/utils/message-tab'
 import { getCustomNavigationStyle } from '@/utils/navigation'
 
@@ -92,15 +92,15 @@ function loadMore() {
 }
 
 function openMessage(item: QualityMessageItem) {
-  if (!item.id)
+  const url = getQualityMessageTargetUrl(item)
+  if (!url) {
+    uni.showToast({ title: '该消息未关联品类详情', icon: 'none' })
     return
-  try {
-    uni.setStorageSync(`quality-message-detail:v3:${item.id}`, item)
   }
-  catch {
-    // The detail page can recover the message from the API by id.
-  }
-  uni.navigateTo({ url: `/pages/message/detail?id=${encodeURIComponent(item.id)}` })
+  uni.navigateTo({
+    url,
+    fail: () => uni.showToast({ title: '详情打开失败，请稍后重试', icon: 'none' }),
+  })
 }
 
 function formatMessageDate(value: string) {
