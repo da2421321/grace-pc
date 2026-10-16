@@ -517,8 +517,13 @@ function selectContentChip(option: ContentChipOption) {
 }
 
 function openDetail(item: QualityImageItem) {
+  // 详情只读，返回时保留列表实例、滚动位置和已加载的分页。
+  skipNextShowRefresh = true
   uni.navigateTo({
     url: `/pages/qc/detail/index?id=${encodeURIComponent(item.id)}`,
+    fail: () => {
+      skipNextShowRefresh = false
+    },
   })
 }
 
@@ -552,6 +557,9 @@ async function openImagePreview(urls: string[], currentUrl: string) {
       urls: watermarkedUrls,
       current: watermarkedUrls[currentIndex] || watermarkedUrls[0],
       showmenu: true,
+      fail: () => {
+        skipNextShowRefresh = false
+      },
     })
   }
   catch (error) {
