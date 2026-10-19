@@ -1,0 +1,7 @@
+[mcp_servers.figma]
+command = "npx"
+args = [
+    "-y",
+    "mcp-remote",
+    "https://mcp.figma.com/mcp",
+]
