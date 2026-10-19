@@ -182,6 +182,14 @@ function goBack() {
             <text class="message-type-label">
               {{ messageTypeTitle }}
             </text>
+            <view class="message-type-changer">
+              <text class="message-type-changer-label">
+                变更人：
+              </text>
+              <text class="message-type-changer-account">
+                {{ item.updateBy?.trim() || '未记录' }}
+              </text>
+            </view>
           </view>
           <view class="message-type-preview">
             <text class="message-type-preview-copy">
@@ -323,6 +331,7 @@ function goBack() {
 .message-type-heading {
   position: absolute;
   top: 30rpx;
+  right: 30rpx;
   left: 30rpx;
   display: flex;
   height: 60rpx;
@@ -336,11 +345,35 @@ function goBack() {
 }
 
 .message-type-label {
+  flex-shrink: 0;
   margin-left: 10rpx;
   color: #25262b;
   font-size: 30rpx;
   font-weight: 700;
   line-height: 36rpx;
+}
+
+.message-type-changer {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: 24rpx;
+  color: #777978;
+  font-size: 24rpx;
+  line-height: 32rpx;
+}
+
+.message-type-changer-label {
+  flex-shrink: 0;
+}
+
+.message-type-changer-account {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-type-preview {
@@ -407,6 +440,7 @@ function goBack() {
 .message-type-card-image .message-type-heading {
   position: relative;
   top: auto;
+  right: auto;
   left: auto;
   margin: 30rpx 30rpx 0;
 }
