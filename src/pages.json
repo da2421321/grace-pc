@@ -17,7 +17,7 @@
     {
       "path": "pages/message/index",
       "style": {
-        "navigationBarTitleText": "消息",
+        "navigationBarTitleText": "最新更新",
         "navigationStyle": "custom",
         "enablePullDownRefresh": true,
         "backgroundColor": "#f5f6f5"
@@ -26,14 +26,14 @@
     {
       "path": "pages/message/detail",
       "style": {
-        "navigationBarTitleText": "消息",
+        "navigationBarTitleText": "最新更新",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/message/type",
       "style": {
-        "navigationBarTitleText": "消息",
+        "navigationBarTitleText": "最新更新",
         "navigationStyle": "custom",
         "enablePullDownRefresh": true,
         "backgroundColor": "#ffffff"
@@ -129,7 +129,7 @@
         "pagePath": "pages/message/index",
         "iconPath": "static/images/tabbar/message.png",
         "selectedIconPath": "static/images/tabbar/message_.png",
-        "text": "消息"
+        "text": "最新更新"
       },
       {
         "pagePath": "pages/mine/index",

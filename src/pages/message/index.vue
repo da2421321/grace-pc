@@ -107,7 +107,7 @@ function formatMessageTime(value = '') {
       <view class="message-nav">
         <image class="message-back" src="/static/images/figma/message/7fabdd9331227ca9dba59b3e264197d4e5b6d11b.svg" mode="aspectFit" @click="goBack" />
         <text class="message-nav-title">
-          消息
+          最新更新
         </text>
       </view>
     </view>

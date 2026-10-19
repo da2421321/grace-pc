@@ -132,7 +132,7 @@ function goBack() {
           @click="goBack"
         />
         <text class="message-detail-nav-title">
-          消息
+          最新更新
         </text>
       </view>
     </view>
