@@ -323,6 +323,7 @@ function drawWatermark(
   )
 
   context.save()
+  // Logo 的颜色和不透明度由 PNG 素材控制。
   context.globalAlpha = 1
   context.drawImage(watermark, offsetX, offsetY, drawWidth, drawHeight)
   context.restore()
@@ -338,7 +339,7 @@ function drawUserName(context: WatermarkCanvasContext, userName: string, width: 
   const fontSize = Math.max(8, Math.round(WATERMARK_ACCOUNT_FONT_SIZE * scale))
 
   context.save()
-  context.globalAlpha = 0.45
+  context.globalAlpha = 0.65
   context.fillStyle = '#8FB8A1'
   context.font = `500 ${fontSize}px sans-serif`
   context.textAlign = 'center'
